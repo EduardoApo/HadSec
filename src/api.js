@@ -1,7 +1,8 @@
 import {createClient} from '@supabase/supabase-js';
+import {readSupabaseConfig} from './supabase-config.mjs';
 
-const url=import.meta.env.VITE_SUPABASE_URL,key=import.meta.env.VITE_SUPABASE_ANON_KEY;
-export const configured=Boolean(url&&key);
+const {url,key,configured:validConfig}=readSupabaseConfig(import.meta.env);
+export const configured=validConfig;
 export const db=configured?createClient(url,key):null;
 export const permissions={'rules.write':'Criar e versionar regras','requests.create':'Solicitar ajustes e revisão','requests.review':'Aprovar e devolver revisões','tests.record':'Registrar testes','github.publish':'Publicar no GitHub','users.manage':'Gerenciar contas','roles.manage':'Gerenciar perfis e permissões','audit.read':'Consultar auditoria'};
 

@@ -33,6 +33,25 @@ O painel exige autenticação no Supabase. Não há modo demonstração, sessão
 
 Os campos de senha oferecem mostrar/ocultar no login, na criação de contas e na troca de senha, sem alterar o valor informado.
 
+## Hospedar no Vercel
+
+Importe este repositório com a branch `main`, diretório raiz do repositório e preset **Vite**. O arquivo `vercel.json` define `npm ci`, `npm run build` e saída em `dist`.
+
+Em **Settings → Environment Variables**, configure para **Production** e **Preview**:
+
+| Variável | Valor |
+| --- | --- |
+| `VITE_SUPABASE_URL` | URL raiz do seu projeto, igual ao `.env` local |
+| `VITE_SUPABASE_ANON_KEY` | Chave pública `sb_publishable_...` ou chave legada `anon` |
+
+`VITE_SUPABASE_PUBLISHABLE_KEY` também é aceito no lugar de `VITE_SUPABASE_ANON_KEY`. Se ambos estiverem definidos, a chave `ANON_KEY` tem precedência. Remova valores antigos para evitar conectar ao projeto errado.
+
+O `.env` local fica fora do Git e não é transferido para o Vercel. O Vite incorpora as variáveis públicas na compilação: após alterar valores, execute **Redeploy**. Uma compilação no Vercel falha com uma mensagem explícita se a configuração estiver ausente ou inválida, evitando publicar um login permanentemente bloqueado. O login exige somente Supabase Auth, sem servidor Node no Vercel e sem a função `gateway`.
+
+Nunca coloque `DATABASE_URL`, senhas, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ACCESS_TOKEN` ou `GITHUB_TOKEN` em variáveis `VITE_`. Mantenha os segredos de integração no Supabase. Quando usar a função `gateway`, configure seu secret `APP_ORIGIN` com a origem exata do domínio de produção e publique novamente a função; essa configuração não controla o login por senha.
+
+Referências: [variáveis no Vercel](https://vercel.com/docs/environment-variables) e [variáveis e modos no Vite](https://vite.dev/guide/env-and-mode).
+
 ## Supabase
 
 Use um projeto dedicado. O provisionamento interrompe se detectar uma tabela `profiles` preexistente sem o marcador do HadSec, para não afetar outra aplicação.
