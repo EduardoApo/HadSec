@@ -1,0 +1,18 @@
+<rules>
+  <DataRequest functionCategory="Security" mode="Streaming" tactic="Credential Access" technique="T1110" techniqueName="Brute Force">
+    <Name>Detecção XML de teste</Name>
+    <Description>Definição sintética para testar a importação do formato nativo.</Description>
+    <DataSource>Fonte de homologação</DataSource>
+    <DetectionTechnology>Correlation</DetectionTechnology>
+    <PatternClause window="300">
+      <SubPattern name="Failures">
+        <SingleEvtConstr>eventType = "Example-Failure"</SingleEvtConstr>
+        <GroupEvtConstr>COUNT(*)&gt;=10</GroupEvtConstr>
+        <GroupByAttr>srcIpAddr,user</GroupByAttr>
+      </SubPattern>
+    </PatternClause>
+    <IncidentDef eventType="PH_RULE_HADSEC_TEST" severity="8" fireFreq="300">
+      <ArgList>srcIpAddr = Failures.srcIpAddr, user = Failures.user</ArgList>
+    </IncidentDef>
+  </DataRequest>
+</rules>

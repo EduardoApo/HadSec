@@ -1,0 +1,3 @@
+project_id = "hadsec-detect"
+[functions.gateway]
+verify_jwt = false

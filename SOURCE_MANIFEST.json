@@ -1,0 +1,162 @@
+{
+  "source_commit": "daf9720fe7ddecd16134cea614ea93d4aea4d19e",
+  "file_count": 39,
+  "files": [
+    {
+      "path": ".env.example",
+      "sha256": "cb43ff10f39ecdebe4c932c983523e4e5fe508be62b796ca4902d8c82a15d35c"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "0a3936e7cd7fa92f91e2ec88cff58201c68f220a14bd5853a16aecbc031ef0a1"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "82ccfa4079bd0cf2c5d9bb26c7ab2967e85292efdb3fc7d5894762f15997ca85"
+    },
+    {
+      "path": "README.md",
+      "sha256": "743273cde2976b1ea142f3f5988623e40240bb1bea7eb52a6f5854620842a93f"
+    },
+    {
+      "path": "certs/supabase-root.crt",
+      "sha256": "700723581420dd1ac98fd7e9ac529f0ef210eadcaf87fc868a3ad7d114c2f3b7"
+    },
+    {
+      "path": "docs/branding.md",
+      "sha256": "48276bc3a604b2f05e122b4165cb706a1d3be8e84faea6a2482e44bf73f02816"
+    },
+    {
+      "path": "docs/fortisiem-7.5.1.md",
+      "sha256": "b42c5342720e5b4b56f0f1a9d23f52515804122c2e20b147e8d5f8d87c5dc57c"
+    },
+    {
+      "path": "docs/fortisiem-environment-review.md",
+      "sha256": "588e7c594e4df68b97cbd9a66529ebc012c6291a862d0e8e3b2c17832e17d45f"
+    },
+    {
+      "path": "index.html",
+      "sha256": "2c14f96e183abdf48c68f1d0ba432cf9b5bf27cfddd25205dd9ba546bf5c6b99"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "198366f533d749429eabc203fed2edaa3afd04257c295696dab45ee79088c267"
+    },
+    {
+      "path": "package.json",
+      "sha256": "f41f65e968e42853967c188e096b717cfb1b3739297eac1e562e1414dfb7259e"
+    },
+    {
+      "path": "public/favicon.svg",
+      "sha256": "71daf3d663e0fec36791e784f6e7092bdc99b540bc0c34b9253398b6464f4f70"
+    },
+    {
+      "path": "public/hadsec-owl-front.png",
+      "sha256": "466d8f1f724d98eb7ef9fb12939f30129ef3eb99a0f3c4d24f10d58f542ad6e4"
+    },
+    {
+      "path": "scripts/bootstrap-database.mjs",
+      "sha256": "f677d7d2853153cac0b07f94b8869445ec864edf39a02e1b964571c82e901f19"
+    },
+    {
+      "path": "scripts/bootstrap.mjs",
+      "sha256": "0545863369ab16cb685f7d8dada746dab424bc0d6514d9e677140ba6e996fe50"
+    },
+    {
+      "path": "scripts/bundle-gateway.mjs",
+      "sha256": "35153cc2f82a7936930645eae7b055623514e7352aed2854d283701293e3c8b9"
+    },
+    {
+      "path": "scripts/github-setup.mjs",
+      "sha256": "93c57ece7be9d9312f9a0e888bd8d4c287191add019bc5d1eb1e4cd15eeadec0"
+    },
+    {
+      "path": "scripts/provision.mjs",
+      "sha256": "90c954c31b1180c52381fb229285c08c36d23b417ccb653ac66f92cdb1f53ae2"
+    },
+    {
+      "path": "src/api.js",
+      "sha256": "183e7e1abf6b3c5f56e05061893b1b504b0891e718fab00737c98e91ae6745e5"
+    },
+    {
+      "path": "src/main.jsx",
+      "sha256": "a40500fec59468bf5d156dcf3bbd0af81fe5c53dde1e8987db6dc25cf0461e27"
+    },
+    {
+      "path": "src/rule-templates.js",
+      "sha256": "14ed152d22955cd7d78b768b8cedefafc025817387a8052987a2242e6f648726"
+    },
+    {
+      "path": "src/styles.css",
+      "sha256": "eeb9a16081a9af8630cffae3b0f16e897808129399de47fe426dd159a6cbb112"
+    },
+    {
+      "path": "supabase/config.toml",
+      "sha256": "520e497c559a2a79d9eabc9116f5fe20082833bcd9f5db14c88d653d1f71e410"
+    },
+    {
+      "path": "supabase/functions/_shared/fortisiem.mjs",
+      "sha256": "1641265d47e7bbd3460de08806d2c33ef93a47249c1e0f8b2828605afd410d1f"
+    },
+    {
+      "path": "supabase/functions/_shared/validator.mjs",
+      "sha256": "0eaf298b873e3bed3eaf6e9d110672b5b77306ea95f3c2fe99a9351ca8d218dc"
+    },
+    {
+      "path": "supabase/functions/gateway/deno.json",
+      "sha256": "e3303930a5186e464d771781b692ba51a031c2110b3c71979b720dbe9366c932"
+    },
+    {
+      "path": "supabase/functions/gateway/index.ts",
+      "sha256": "4f3fb6a7a8ba304f36466b00658171c73f89dd36ccd5b4db2e76c53dd389b8e5"
+    },
+    {
+      "path": "supabase/migrations/202611050001_hadsec.sql",
+      "sha256": "29ecf23c6fdcb7ccc201cbc33a59ace8cf30d652b0ffad5effa7ecf45e9345c8"
+    },
+    {
+      "path": "supabase/migrations/202611050002_user_deletion.sql",
+      "sha256": "1c031b9bc9a5d11405fce51b2bbb31e16b9ab5a591cd8d9d6b087ba3a89c0cb2"
+    },
+    {
+      "path": "supabase/migrations/202611050003_individual_permissions.sql",
+      "sha256": "1619f22e5f7305accd246200bdbc768360987382bd9fd1fb3d11f6ccc90259ea"
+    },
+    {
+      "path": "supabase/migrations/202611050004_native_password_change.sql",
+      "sha256": "2967bf1c0d9db1a56578ce24098e647d0689cac0bfa5ae940a132662add34bfa"
+    },
+    {
+      "path": "supabase/migrations/202611050005_managed_accounts.sql",
+      "sha256": "e68445fc3050838b2c9539694ee5a3074c36d890f6b6343640d7b353e2b95dbb"
+    },
+    {
+      "path": "tests/browser.mjs",
+      "sha256": "4c727d734036d0544649b409ebce0120838ebe5facb0cd4ec0c88868d42676e7"
+    },
+    {
+      "path": "tests/database.test.js",
+      "sha256": "ae6c751a7cbe08ab8915a105f141946d7a7c41522522dd06b77d4382d78e8a1f"
+    },
+    {
+      "path": "tests/fixtures/native-rule.xml",
+      "sha256": "a81ab3e7a71aaeeaa599b4b067220813d29fe4a8d7916cc062203f6dad7ad5b8"
+    },
+    {
+      "path": "tests/live-accounts.mjs",
+      "sha256": "ea1d390c51a9749716ab26a6579555a21d6b8c6d6dce01385b6b398ef7bc3f0f"
+    },
+    {
+      "path": "tests/live-auth.mjs",
+      "sha256": "105e5e3c345a1a87d899871eb96cf846fd671955a2c7aa6744d8a2ef53084589"
+    },
+    {
+      "path": "tests/validator.test.js",
+      "sha256": "df6337ebe224d33f8bdf6dd76f016ca73bc2d39ee7cc6aea8aa6d362202d086a"
+    },
+    {
+      "path": "vite.config.js",
+      "sha256": "aff6f228e3706a8e771ba360123656ba721bfbc9c7df0b443c934576bfb1a52b"
+    }
+  ]
+}
