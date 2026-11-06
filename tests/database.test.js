@@ -13,6 +13,7 @@ test('PostgreSQL: RLS, imutabilidade, revisão, evidências e publicação',asyn
  await pg.exec(await readFile(new URL('../supabase/migrations/202611050003_individual_permissions.sql',import.meta.url),'utf8'));
  await pg.exec(await readFile(new URL('../supabase/migrations/202611050004_native_password_change.sql',import.meta.url),'utf8'));
  await pg.exec(await readFile(new URL('../supabase/migrations/202611050005_managed_accounts.sql',import.meta.url),'utf8'));
+ await pg.exec(await readFile(new URL('../supabase/migrations/202611060006_admin_approval.sql',import.meta.url),'utf8'));
  const engineer='00000000-0000-4000-8000-000000000001',reviewer='00000000-0000-4000-8000-000000000002',reader='00000000-0000-4000-8000-000000000003',admin='00000000-0000-4000-8000-000000000004';
  for(const [id,role] of [[engineer,'Engenheiro'],[reviewer,'Revisor'],[reader,'Leitor'],[admin,'Administrador']]){await pg.query('insert into auth.users(id) values($1)',[id]);await pg.query(`insert into profiles(id,username,display_name,role_id,must_change_password) select $1,$2,$2,id,false from roles where name=$3`,[id,'user'+id.slice(-1),role]);}
  const as=async id=>{await pg.exec('reset role');await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id]);await pg.exec('set role authenticated');};
@@ -30,7 +31,7 @@ test('PostgreSQL: RLS, imutabilidade, revisão, evidências e publicação',asyn
  await assert.rejects(pg.query("select save_rule($1,'Regra','Descrição','Alta','T1110','Scheduled via SQL','sql','SELECT 1','Concorrência',0)",[v.rule_id]),/A regra mudou/);
  const {rows:[{create_request:qid}]}=await pg.query("select create_request('Revisar regra','Contexto',$1,$2)",[v.rule_id,vid]);
  await as(admin);await pg.exec('reset role');await pg.query('update change_requests set created_by=$1 where id=$2',[admin,qid]);await as(admin);
- await assert.rejects(pg.query("select decide_request($1,'approved','Consulta revisada')",[qid]),/outro revisor/);
+ await assert.rejects(pg.query("select decide_request($1,'approved','Consulta revisada')",[qid]),/teste aprovado/);
  await pg.exec('reset role');await pg.query('update change_requests set created_by=$1 where id=$2',[engineer,qid]);await as(reviewer);
  await assert.rejects(pg.query("select decide_request($1,'approved','Consulta revisada')",[qid]),/teste aprovado/);
  await pg.query("select record_evidence($1,'Revisão manual','pass','Revisão visual da consulta')",[vid]);
@@ -55,6 +56,23 @@ test('PostgreSQL: RLS, imutabilidade, revisão, evidências e publicação',asyn
  await pg.query('select save_permission_labels($1)',[[{key:'rules.write',label:'Engenharia de regras',description:'Nome personalizado'}]]);
  assert.equal((await pg.query("select label from permission_definitions where key='rules.write'")).rows[0].label,'Engenharia de regras');
  await pg.query('select set_user_permissions($1,$2)',[reader,{}]);await as(reader);assert.equal((await pg.query("select has_permission('rules.write') as allowed")).rows[0].allowed,false);
+ // Self-approval is restricted to the system Administrator and still requires evidence.
+ await as(admin);
+ const ownVersion=(await pg.query("select save_rule(null,'Regra do administrador','Teste administrativo','Alta','T1110','Scheduled via SQL','sql','SELECT eventType FROM fsiem.events','Inicial',0)")).rows[0].save_rule;
+ const ownRule=(await pg.query('select rule_id from rule_versions where id=$1',[ownVersion])).rows[0].rule_id;
+ await pg.exec('reset role');await pg.query('update rule_versions set validated=true where id=$1',[ownVersion]);await as(admin);
+ const ownRequest=(await pg.query("select create_request('Revisão administrativa','Regra própria do administrador',$1,$2)",[ownRule,ownVersion])).rows[0].create_request;
+ await assert.rejects(pg.query("select decide_request($1,'approved','Aprovação própria')",[ownRequest]),/teste aprovado/);
+ await pg.query("select record_evidence($1,'FortiSIEM SQL','pass','Consulta executada e validada no ambiente de homologação')",[ownVersion]);
+ await pg.query("select decide_request($1,'approved','Aprovação administrativa com evidência')",[ownRequest]);
+ assert.equal((await pg.query('select reviewed_by from change_requests where id=$1',[ownRequest])).rows[0].reviewed_by,admin);
+ assert.equal((await pg.query("select detail->>'administrator_self_approval' as self_approval from audit_events where action='request.approved' and entity_id=$1",[ownRequest])).rows[0].self_approval,'true');
+ await as(engineer);const normalVersion=(await pg.query("select save_rule(null,'Regra com revisão comum','Teste de revisão comum','Alta','T1110','Scheduled via SQL','sql','SELECT eventType FROM fsiem.events','Inicial',0)")).rows[0].save_rule;
+ const normalRule=(await pg.query('select rule_id from rule_versions where id=$1',[normalVersion])).rows[0].rule_id;
+ await pg.exec('reset role');await pg.query('update rule_versions set validated=true where id=$1',[normalVersion]);await as(reviewer);
+ const normalRequest=(await pg.query("select create_request('Revisão comum','Pedido criado pelo revisor',$1,$2)",[normalRule,normalVersion])).rows[0].create_request;
+ await assert.rejects(pg.query("select decide_request($1,'approved','Tentativa própria')",[normalRequest]),/outro revisor/);
+ await pg.exec('reset role');await assert.rejects(pg.query('update change_requests set reviewed_by=$1 where id=$2',[reviewer,normalRequest]),/outro revisor/);
  await pg.exec("reset role; select set_config('request.jwt.claim.sub','',false); set role anon;");await assert.rejects(pg.query('select * from rule_versions'),/permission denied/);
  }finally{await pg.close();}
 });

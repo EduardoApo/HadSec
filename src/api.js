@@ -32,9 +32,10 @@ async function all(table){
   const page=check(await query.range(offset,offset+999));rows.push(...page);if(page.length<1000)return rows;offset+=1000;
  }
 }
-export async function loadData(){
+export async function loadData(onProgress){
  requireDatabase();
- const [roles,profiles,rules,versions,requests,evidence,comments,audit,permissionDefinitions,overrides]=await Promise.all(['roles','profiles','rules','rule_versions','change_requests','test_evidence','comments','audit_events','permission_definitions','user_permission_overrides'].map(all));
+ let completed=0;const tables=['roles','profiles','rules','rule_versions','change_requests','test_evidence','comments','audit_events','permission_definitions','user_permission_overrides'];
+ const [roles,profiles,rules,versions,requests,evidence,comments,audit,permissionDefinitions,overrides]=await Promise.all(tables.map(async table=>{const rows=await all(table);if(typeof onProgress==='function')onProgress(++completed,tables.length);return rows;}));
  audit.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
  Object.assign(permissions,Object.fromEntries(permissionDefinitions.map(d=>[d.key,d.label])));
  return {roles,profiles,rules,versions,requests,evidence,comments,audit,permissionDefinitions,overrides};

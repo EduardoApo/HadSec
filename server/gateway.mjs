@@ -1,5 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {validateRule} from '../supabase/functions/_shared/validator.mjs';
+import {notificationActions,buildNotifications} from './notifications.mjs';
 
 class GatewayError extends Error {
  constructor(message,status=400,code='REQUEST_FAILED'){super(message);this.status=status;this.code=code;}
@@ -42,7 +43,10 @@ export function createGateway({env={},clientFactory=createClient,fetchImpl=globa
    const publicKey=get('SUPABASE_ANON_KEY')||get('SUPABASE_PUBLISHABLE_KEY')||get('VITE_SUPABASE_ANON_KEY')||get('VITE_SUPABASE_PUBLISHABLE_KEY');
    if(!url||!serviceKey||!publicKey)throw new GatewayError('A conexão do servidor com o Supabase está pendente. Consulte Conexões.',503,'SERVER_NOT_CONFIGURED');
    const admin=clientFactory(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+   const authStarted=Date.now();
    const {data:{user}={},error}=await admin.auth.getUser(token);
+   const authLatency=Date.now()-authStarted;
+   if(error?.name==='AuthRetryableFetchError'||error?.status>=500)throw new GatewayError('O Supabase Auth não respondeu. Tente novamente.',503,'AUTH_UNAVAILABLE');
    if(error||!user)throw new GatewayError('Sua sessão expirou. Entre novamente.',401,'SESSION_EXPIRED');
    const profile=await checked(admin.from('profiles').select('*,roles(*)').eq('id',user.id).maybeSingle());
    if(!profile?.active||profile.deleted_at)throw new GatewayError('Sua conta não tem acesso ao workspace.',403,'ACCOUNT_INACTIVE');
@@ -53,7 +57,28 @@ export function createGateway({env={},clientFactory=createClient,fetchImpl=globa
    const audit=(action,entity,detail={})=>checked(admin.from('audit_events').insert({actor_id:user.id,action,entity_id:entity,detail}));
    const client=clientFactory(url,publicKey,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
 
-   if(body.action==='connections.status')return reply({server:true,supabase:true,github:githubConfigured(),repository:has('github.publish')&&githubConfigured()?`${get('GITHUB_OWNER')}/${get('GITHUB_REPO')}`:null});
+   if(body.action==='connections.status'){
+    const checkedAt=new Date().toISOString();
+    async function probe(operation){const started=Date.now();try{await operation();return {state:'online',latencyMs:Date.now()-started};}catch{return {state:'offline',latencyMs:Date.now()-started};}}
+    const [database,git]=await Promise.all([
+     probe(()=>checked(client.from('roles').select('id').limit(1))),
+     githubConfigured()?probe(()=>github('/git/ref/heads/'+encodeURIComponent(get('GITHUB_BASE_BRANCH')||'main'))):Promise.resolve({state:'not_configured',latencyMs:null})
+    ]);
+    return reply({server:true,supabase:database.state==='online',github:git.state==='online',githubConfigured:githubConfigured(),repository:has('github.publish')&&githubConfigured()?`${get('GITHUB_OWNER')}/${get('GITHUB_REPO')}`:null,checkedAt,services:{auth:{state:'online',latencyMs:authLatency},database,server:{state:'online',latencyMs:null},github:git}});
+   }
+   if(body.action==='notifications.list'){
+    // Safe event summaries for members; detailed audit access remains audit.read.
+    const events=await checked(admin.from('audit_events').select('id,action,actor_id,entity_id,created_at').in('action',notificationActions).order('id',{ascending:false}).limit(50));
+    const validIds=values=>[...new Set(values.filter(value=>typeof value==='string'&&/^[0-9a-f-]{36}$/i.test(value)))];
+    const fetchRows=(table,columns,ids)=>ids.length?checked(admin.from(table).select(columns).in('id',ids)):Promise.resolve([]);
+    const [profiles,versions,requests]=await Promise.all([
+     fetchRows('profiles','id,display_name',validIds(events.map(e=>e.actor_id))),
+     fetchRows('rule_versions','id,rule_id,number',validIds(events.filter(e=>e.action.startsWith('version.')||e.action==='evidence.recorded').map(e=>e.entity_id))),
+     fetchRows('change_requests','id,title',validIds(events.filter(e=>e.action.startsWith('request.')||e.action==='github.pr_created').map(e=>e.entity_id)))
+    ]);
+    const rules=await fetchRows('rules','id,name',validIds([...versions.map(v=>v.rule_id),...events.filter(e=>e.action==='rule.archived').map(e=>e.entity_id)]));
+    return reply({items:buildNotifications({events,profiles,versions,requests,rules}),checkedAt:new Date().toISOString()});
+   }
    if(body.action==='validate'){
     permit('rules.write');
     const v=await checked(admin.from('rule_versions').select('*,rules(format,mode,archived)').eq('id',uuid(body.version_id)).maybeSingle());

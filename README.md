@@ -11,7 +11,7 @@ Engenharia e versionamento de regras para **FortiSIEM 7.5.1.0620**. Interface em
 - Nomes e descrições das permissões editáveis pelo administrador; as chaves internas permanecem estáveis para preservar os controles de acesso.
 - Menu compacto por padrão no desktop, tooltips por opção e expansão persistida no navegador. No celular, o menu abre completo.
 - Definições XML preservadas e consultas SQL ClickHouse, versões imutáveis e hash SHA-256.
-- Solicitações de ajustes, discussão, associação de uma versão validada e revisão por outra pessoa.
+- Solicitações de ajustes, discussão e associação de uma versão validada. Perfis comuns exigem outro revisor; o Administrador do sistema pode aprovar o próprio trabalho, com justificativa, evidência e auditoria.
 - Comparação entre versões, importação e download da definição.
 - Laboratório de análise estática; evidências de homologação vinculadas à versão.
 - Aprovação exige teste declarado no FortiSIEM; revisão manual isolada não libera publicação.
@@ -127,9 +127,13 @@ React + Vite no navegador → Supabase Auth/PostgREST com JWT e RLS → RPCs Pos
 
 A revisão de 06/11/2026 permanece local até aprovação da publicação. Execute `npm run dev` e abra `http://127.0.0.1:5173`. O login continua real; não existe modo demonstração. `node tests/review-browser.mjs` testa os novos fluxos com serviços interceptados exclusivamente pelo Playwright, sem tocar no banco real. Capturas ficam em `artifacts/review/`, fora do Git.
 
-Exclusão de regra exige `rules.write` e confirmação do nome exato. Ela marca `rules.archived`, preservando versões e auditoria. Regras ligadas a solicitações em andamento ou publicadas são protegidas. Nenhuma migração de banco é necessária para esta revisão.
+Exclusão de regra exige `rules.write` e confirmação do nome exato. Ela marca `rules.archived`, preservando versões e auditoria. Regras ligadas a solicitações em andamento ou publicadas são protegidas.
 
-A criação pelo detalhe de uma solicitação carrega seu contexto no editor; ao salvar uma versão válida, a plataforma a vincula à solicitação existente. Falhas posteriores ao salvamento não mantêm um formulário que possa duplicar a versão. As notificações são atualizadas ao focar a janela e a cada 45 segundos; o estado de leitura é local e separado por usuário.
+A criação pelo detalhe de uma solicitação carrega seu contexto no editor; ao salvar uma versão válida, a plataforma a vincula à solicitação existente. Falhas posteriores ao salvamento não mantêm um formulário que possa duplicar a versão. As notificações gerais são atualizadas ao focar a janela, abrir o sino e a cada 45 segundos; o estado de leitura é local e separado por usuário. A rota retorna apenas resumos de ações permitidas, sem liberar a auditoria completa a perfis sem `audit.read`.
+
+Configurações do sistema reúne conexões e informações da ferramenta. A senha fica em Meu perfil. A verificação de conexões consulta Auth, banco com o JWT do usuário e branch GitHub; disponibilidade, latência e momento da consulta vêm das respostas reais. A página Relatórios calcula indicadores e gráficos dos registros visíveis no período, com exportação CSV. Não há dados demonstrativos no produto. O splash preenche a coruja de acordo com as consultas concluídas.
+
+A aprovação administrativa depende da migração `202611060006_admin_approval.sql`, preparada para aplicar somente após aprovação da publicação. Ela mantém a separação para outros perfis, exige validação e teste real, e grava `administrator_self_approval` na auditoria. A conexão do código é `EduardoApo/HadSec`; o destino privado de regras é `EduardoApo/hadsec-detect-rules`.
 
 `node --env-file=.env tests/live-gateway.mjs` executa o teste integrado explícito na prévia: cria uma conta e uma regra temporárias, verifica login real, persistência da validação, exclusão pelo navegador, auditoria e acesso de leitura ao GitHub. Os registros temporários são removidos ao final, sem criar PRs ou alterar contas existentes.
 

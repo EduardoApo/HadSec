@@ -20,11 +20,13 @@ try{
  const {session}=check(await client.auth.signInWithPassword({email,password}));
  const call=async(action,payload={})=>{const r=await fetch(base+'/api/gateway',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,'Content-Type':'application/json',Origin:base},body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(45000)});const body=await r.json();if(!r.ok)throw Error(body.error||'Gateway '+r.status);return body;};
  const connection=await call('connections.status');assert.equal(connection.server,true);assert.equal(connection.supabase,true);
+ assert.equal(connection.services.auth.state,'online');assert.equal(connection.services.database.state,'online');assert.equal(connection.services.github.state,'online');assert.ok(connection.checkedAt);
  const github=await call('github.status');assert.equal(github.configured,true);assert.equal(github.connected,true,'Existing GitHub credential must access its configured base branch');
  const vid=check(await client.rpc('save_rule',{p_rule_id:null,p_name:label,p_description:'Fixture temporária para verificar o gateway.',p_severity:'Baixa',p_technique:'',p_mode:'Scheduled via SQL',p_format:'sql',p_content:'SELECT eventType FROM fsiem.events LIMIT 10',p_note:'Fixture temporária de teste de integração.',p_expected_version:0}));
  const before=check(await admin.from('rule_versions').select('rule_id').eq('id',vid).single());ruleId=before.rule_id;
  const report=await call('validate',{version_id:vid});assert.equal(report.ok,true);
  const version=check(await admin.from('rule_versions').select('validated,validation_report').eq('id',vid).single());assert.equal(version.validated,true);assert.equal(version.validation_report.engine,report.engine);
+ const notifications=await call('notifications.list');assert.ok(notifications.items.some(item=>item.target?.type==='rule'&&item.target.id===ruleId));assert.equal(notifications.items.some(item=>'detail' in item),false);
  browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base);await page.getByLabel('Usuário',{exact:true}).fill(label);await page.getByLabel('Senha',{exact:true}).fill(password);await page.getByRole('button',{name:'Entrar no workspace'}).click();await page.getByRole('heading',{name:'Visão geral.'}).waitFor();
