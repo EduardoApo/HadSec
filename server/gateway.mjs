@@ -91,15 +91,8 @@ export function createGateway({env={},clientFactory=createClient,fetchImpl=globa
    }
    if(body.action==='rule.archive'){
     permit('rules.write');
-    const rule=await checked(admin.from('rules').select('id,name,archived').eq('id',uuid(body.rule_id)).maybeSingle());
-    if(!rule)throw new GatewayError('Regra não encontrada.',404);
-    if(body.confirmation!==rule.name)throw new GatewayError('Digite o nome exato da regra para confirmar.');
-    if(rule.archived)return reply({ok:true,archived:true});
-    const linked=await checked(admin.from('change_requests').select('id').eq('rule_id',rule.id).in('status',['requested','review','changes','approved','published']).or('status.eq.published,deleted_at.is.null').limit(1));
-    if(linked.length)throw new GatewayError('Esta regra está vinculada a uma solicitação em andamento ou publicada. Preserve o fluxo antes de excluí-la.',409,'RULE_IN_USE');
-    await checked(admin.from('rules').update({archived:true}).eq('id',rule.id).eq('archived',false));
-    await audit('rule.archived',rule.id,{name:rule.name});
-    return reply({ok:true,archived:true});
+    // The caller's JWT reaches the atomic RPC; a service key never bypasses ownership.
+    return reply(await checked(client.rpc('archive_rule',{p_rule:uuid(body.rule_id),p_confirmation:body.confirmation})));
    }
    if(body.action==='github.status'){
     permit('github.publish');

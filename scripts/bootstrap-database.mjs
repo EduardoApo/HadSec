@@ -5,7 +5,7 @@ import {createClient} from '@supabase/supabase-js';
 // One-time administrator provisioning using the explicitly supplied project database access.
 // This is a setup script only, never a browser API or a replacement for the Auth Admin API.
 export async function bootstrapDatabase(){
- const username=process.env.BOOTSTRAP_USERNAME||'HadSec';
+ const username=process.env.BOOTSTRAP_USERNAME||'Admin';
  const email=process.env.BOOTSTRAP_EMAIL||`${username.toLowerCase()}@hadsec.local`;
  const password=process.env.BOOTSTRAP_PASSWORD;
  if(!process.env.DATABASE_URL||!password)throw new Error('Preencha DATABASE_URL e BOOTSTRAP_PASSWORD no .env.');

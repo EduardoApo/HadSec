@@ -5,7 +5,7 @@ import {nodeGateway} from '../api/gateway.js';
 import {Readable} from 'node:stream';
 
 const userId='00000000-0000-4000-8000-000000000001',ruleId='00000000-0000-4000-8000-000000000002',versionId='00000000-0000-4000-8000-000000000003',requestId='00000000-0000-4000-8000-000000000004';
-function setup({permissions=['rules.write','github.publish'],overrides=[],content='SELECT eventType FROM fsiem.events LIMIT 10',requestStatus,archived=false,mustChange=false,active=true,github=true,fetchImpl}={}){
+function setup({permissions=['rules.write','github.publish'],overrides=[],content='SELECT eventType FROM fsiem.events LIMIT 10',requestStatus,archived=false,mustChange=false,active=true,github=true,fetchImpl,rpcFailure=null}={}){
  const rule={id:ruleId,name:'Regra de teste',format:'sql',mode:'Scheduled via SQL',archived};
  const version={id:versionId,rule_id:ruleId,number:1,content,content_sha256:'version-hash',rules:rule};
  const tables={roles:[{id:'role',permissions}],profiles:[{id:userId,active,must_change_password:mustChange,roles:{permissions}}],user_permission_overrides:overrides.map(o=>({...o,user_id:userId})),rules:[rule],rule_versions:[version],change_requests:requestStatus?[{id:requestId,rule_id:ruleId,version_id:versionId,status:requestStatus,rules:rule,rule_versions:version,reviewed_by:'another-user',review_note:'Aprovada com evidência',github_url:requestStatus==='published'?'https://github.com/example/rules/pull/1':null}]:[],audit_events:[]};
@@ -14,7 +14,7 @@ function setup({permissions=['rules.write','github.publish'],overrides=[],conten
   const filters=[];let mutation=null,values,single=false,limit=Infinity;
   const query={select(){return query;},order(){return query;},eq(key,value){filters.push(row=>row[key]===value);return query;},in(key,values){filters.push(row=>values.includes(row[key]));return query;},or(expression){assert.equal(expression,'status.eq.published,deleted_at.is.null');filters.push(row=>row.status==='published'||!row.deleted_at);return query;},limit(value){limit=value;return query;},maybeSingle(){single=true;return query;},update(value){mutation='update';values=value;return query;},insert(value){mutation='insert';values=value;return query;},then(resolve,reject){return Promise.resolve().then(()=>{calls.push({table,mutation});let rows=tables[table].filter(row=>filters.every(fn=>fn(row))).slice(0,limit);if(mutation==='update')for(const row of rows)Object.assign(row,values);if(mutation==='insert'){tables[table].push(values);rows=[values];}return {data:single?rows[0]||null:rows,error:null};}).then(resolve,reject);}};return query;
  }
- const api={auth:{async getUser(token){calls.push({auth:true});return token==='valid'?{data:{user:{id:userId}},error:null}:{data:{user:null},error:{message:'invalid token'}};}},from,async rpc(name){calls.push({rpc:name});const request=tables.change_requests[0];if(name==='claim_export'&&request?.status!=='approved')return {data:null,error:{message:'Aprovação pendente'}};return {data:null,error:null};}};
+ const api={auth:{async getUser(token){calls.push({auth:true});return token==='valid'?{data:{user:{id:userId}},error:null}:{data:{user:null},error:{message:'invalid token'}};}},from,async rpc(name,parameters){calls.push({rpc:name,parameters});if(name==='archive_rule')return {data:rpcFailure?null:{ok:true,archived:true,deleted_requests:2},error:rpcFailure?{message:rpcFailure}:null};const request=tables.change_requests[0];if(name==='claim_export'&&request?.status!=='approved')return {data:null,error:{message:'Aprovação pendente'}};return {data:null,error:null};}};
  const env={SUPABASE_URL:'https://example.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'server-service-key',SUPABASE_ANON_KEY:'public-key',...(github?{GITHUB_TOKEN:'private-github-token',GITHUB_OWNER:'example',GITHUB_REPO:'rules'}:{})};
  const outbound=[];
  const handle=createGateway({env,clientFactory:()=>api,fetchImpl:async(url,options)=>{outbound.push({url,options});return fetchImpl?fetchImpl(url,options):Response.json({object:{sha:'base-sha'}});}});
@@ -46,13 +46,17 @@ test('Gateway: validates persisted content and records the report and responsibl
  assert.equal(f.tables.audit_events[0].actor_id,userId);assert.equal(f.tables.audit_events[0].action,'version.validated');
  assert.equal((await setup({archived:true}).request('validate',{version_id:versionId})).status,404);
 });
-test('Gateway: rule exclusion preserves versions and requires confirmation',async()=>{
- const f=setup();assert.equal((await f.request('rule.archive',{rule_id:ruleId,confirmation:'wrong'})).status,400);assert.equal(f.tables.rules[0].archived,false);
- const r=await f.request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste'});assert.equal(r.status,200);assert.equal(f.tables.rules[0].archived,true);assert.equal(f.tables.rule_versions.length,1);assert.equal(f.tables.audit_events[0].action,'rule.archived');
- assert.equal((await f.request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste'})).status,200);
- for(const requestStatus of ['requested','review','changes','approved','published']){const blocked=setup({requestStatus});assert.equal((await blocked.request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste'})).status,409);assert.equal(blocked.tables.rules[0].archived,false);}
+test('Gateway: rule exclusion forwards the caller to the atomic database RPC',async()=>{
+ const f=setup();const result=await f.request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste',owner:true});
+ assert.equal(result.status,200);assert.equal(result.body.deleted_requests,2);
+ assert.deepEqual(f.calls.find(call=>call.rpc==='archive_rule').parameters,{p_rule:ruleId,p_confirmation:'Regra de teste'});
+ assert.equal(f.calls.some(call=>call.mutation),false,'Gateway must not use a service-key mutation');assert.equal(f.outbound.length,0);
+ const denied=setup({rpcFailure:'Somente o proprietário pode excluir regras com solicitações vinculadas'});
+ const refusal=await denied.request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste',owner:true});assert.equal(refusal.status,400);assert.match(refusal.body.error,/Somente/);
+ const invalid=setup();assert.equal((await invalid.request('rule.archive',{rule_id:'invalid'})).status,400);assert.equal(invalid.calls.some(call=>call.rpc),false);
  assert.equal((await setup({permissions:[]}).request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste'})).status,403);
 });
+
 test('Gateway: GitHub status checks real access without exposing credentials',async()=>{
  const f=setup();const r=await f.request('github.status');assert.equal(r.body.connected,true);assert.ok(f.outbound[0].url.endsWith('/git/ref/heads/main'));assert.equal(f.outbound[0].options.headers.Authorization,'Bearer private-github-token');assert.equal(JSON.stringify(r.body).includes('private-github-token'),false);
  const pending=setup({github:false});assert.equal((await pending.request('github.status')).body.configured,false);assert.equal(pending.outbound.length,0);
@@ -60,17 +64,11 @@ test('Gateway: GitHub status checks real access without exposing credentials',as
  assert.equal((await setup({permissions:[]}).request('github.status')).status,403);
 });
 
-test('Gateway: deleted requests cannot publish; deleted unpublished reviews release rule exclusion',async()=>{
+test('Gateway: deleted requests cannot publish or notify',async()=>{
  for(const requestStatus of ['approved','published']){
   const f=setup({requestStatus});Object.assign(f.tables.change_requests[0],{deleted_at:'2026-11-06T12:00:00Z',github_hidden_at:'2026-11-06T12:00:00Z'});
   assert.equal((await f.request('github.publish',{request_id:requestId,status:'approved',deleted_at:null})).status,404);assert.equal(f.outbound.length,0);assert.equal(f.calls.some(call=>call.rpc==='claim_export'),false);
  }
- for(const requestStatus of ['requested','review','changes','approved']){
-  const f=setup({requestStatus});f.tables.change_requests[0].deleted_at='2026-11-06T12:00:00Z';
-  assert.equal((await f.request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste'})).status,200);
- }
- const published=setup({requestStatus:'published'});published.tables.change_requests[0].deleted_at='2026-11-06T12:00:00Z';
- assert.equal((await published.request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste'})).status,409);
  const notifications=setup({requestStatus:'published'});Object.assign(notifications.tables.change_requests[0],{deleted_at:'2026-11-06T12:00:00Z'});notifications.tables.audit_events.push({id:1,action:'request.created',entity_id:requestId},{id:2,action:'github.pr_created',entity_id:requestId});assert.deepEqual((await notifications.request('notifications.list')).body.items,[]);
 });
 test('Gateway: export requires the database approval before any GitHub operation',async()=>{

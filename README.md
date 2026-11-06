@@ -12,13 +12,16 @@ Engenharia e versionamento de regras para **FortiSIEM 7.5.1.0620**. Interface em
 - Menu compacto por padrão no desktop, tooltips por opção e expansão persistida no navegador. No celular, o menu abre completo.
 - Definições XML preservadas e consultas SQL ClickHouse, versões imutáveis e hash SHA-256.
 - Solicitações de ajustes, discussão e associação de uma versão validada. Perfis comuns exigem outro revisor; o Administrador do sistema pode aprovar o próprio trabalho, com justificativa, evidência e auditoria.
-- Exclusão de solicitações na lista ou nos detalhes, com confirmação pelo título. Por padrão, exclusiva da conta proprietária HadSec; a regra, as versões e a auditoria são preservadas.
-- Exclusão de envios da lista GitHub exclusiva da conta proprietária HadSec, vinculada ao ID da conta no banco. Outros administradores não herdam essa autorização. Pull requests e arquivos no GitHub são preservados; uma versão publicada continua protegida contra reenvio.
+- Exclusão de regras vinculadas pelo proprietário, retirando suas solicitações das listas na mesma transação. Versões, evidências, auditoria e recursos remotos do GitHub permanecem.
+- Exclusão de solicitações na lista ou nos detalhes, com confirmação pelo título. Por padrão, exclusiva da conta proprietária Admin; a regra, as versões e a auditoria são preservadas.
+- Exclusão de envios da lista GitHub exclusiva da conta proprietária Admin, vinculada ao ID da conta no banco. Outros administradores não herdam essa autorização. Pull requests e arquivos no GitHub são preservados; uma versão publicada continua protegida contra reenvio.
 - Comparação entre versões, importação e download da definição.
 - Laboratório de análise estática; evidências de homologação vinculadas à versão.
 - Aprovação exige teste declarado no FortiSIEM; revisão manual isolada não libera publicação.
 - Branch exclusivo e pull request no GitHub, com autorização no servidor, bloqueio de concorrência e recuperação de tentativas interrompidas.
 - Auditoria de ações e exportação JSON; RLS habilitada em todas as tabelas do aplicativo.
+
+O usuário principal desta instalação é **Admin**. A alteração de HadSec para Admin preservou a senha e o ID da conta. A exclusividade de exclusão acompanha o ID protegido em `workspace_owner`.
 
 ## Executar
 
@@ -70,9 +73,9 @@ SUPABASE_SERVICE_ROLE_KEY=SUA_CHAVE_SERVICE_ROLE
 DATABASE_URL=postgresql://postgres:SENHA_CODIFICADA@db.SEU_PROJETO.supabase.co:5432/postgres
 SUPABASE_ACCESS_TOKEN=SEU_TOKEN_DE_GERENCIAMENTO
 APP_ORIGIN=https://ORIGEM_EXATA_DO_FRONTEND
-BOOTSTRAP_USERNAME=HadSec
+BOOTSTRAP_USERNAME=Admin
 BOOTSTRAP_PASSWORD=SENHA_INICIAL
-BOOTSTRAP_EMAIL=hadsec@hadsec.local
+BOOTSTRAP_EMAIL=admin@hadsec.local
 ```
 
 A chave publicável (`sb_publishable_...`) também funciona no campo `VITE_SUPABASE_ANON_KEY`. O nome foi mantido para compatibilidade com instalações que usam a chave anon. A senha na URL PostgreSQL precisa de percent-encoding, por exemplo `@` → `%40`. Não adicione prefixo `VITE_` a qualquer segredo.

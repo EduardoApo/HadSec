@@ -34,7 +34,7 @@ try{
  await page.getByRole('button',{name:'Excluir '+label,exact:true}).click();const modal=page.getByRole('dialog',{name:'Excluir regra'});await modal.getByRole('textbox').fill(label);await modal.getByRole('button',{name:'Excluir regra',exact:true}).click();await modal.waitFor({state:'hidden'});
  const rule=check(await admin.from('rules').select('archived').eq('id',ruleId).single());assert.equal(rule.archived,true);
  assert.equal(check(await admin.from('rule_versions').select('id').eq('rule_id',ruleId)).length,1);
- const events=check(await admin.from('audit_events').select('action').eq('actor_id',userId));assert.ok(events.some(e=>e.action==='version.validated'));assert.ok(events.some(e=>e.action==='rule.archived'));assert.deepEqual(errors,[]);
+ const events=check(await admin.from('audit_events').select('action,detail').eq('actor_id',userId));assert.ok(events.some(e=>e.action==='version.validated'));assert.ok(events.some(e=>e.action==='rule.archived'&&e.detail.deleted_requests===0),'Gateway must call the new atomic RPC');assert.deepEqual(errors,[]);
  console.log(JSON.stringify({realSupabaseLogin:true,serverSessionValidation:true,persistedValidation:true,realGitHubReadAccess:true,ruleExclusionThroughBrowser:true,historyPreserved:true,auditRecorded:true,existingAccountsUnchanged:true}));
 }finally{
  if(browser)await browser.close();
