@@ -39,14 +39,21 @@ export async function loadData(){
  Object.assign(permissions,Object.fromEntries(permissionDefinitions.map(d=>[d.key,d.label])));
  return {roles,profiles,rules,versions,requests,evidence,comments,audit,permissionDefinitions,overrides};
 }
+export async function loadRequests(){requireDatabase();return all('change_requests');}
 export async function gateway(action,payload={}){
  requireDatabase();
  if(action==='password')return changeOwnPassword(payload);
  if(action==='user.create'){const id=await rpc('create_managed_user',{p_username:payload.username,p_display_name:payload.display_name,p_password:payload.password,p_role_id:payload.role_id});return {ok:true,id};}
  if(action==='user.update'){await rpc('update_managed_user',{p_user:payload.id,p_role_id:payload.role_id,p_active:payload.active});return {ok:true};}
  if(action==='user.delete'){await rpc('delete_managed_user',{p_user:payload.id,p_confirmation:payload.confirmation});return {ok:true};}
- const {data,error}=await db.functions.invoke('gateway',{body:{action,...payload}});
- if(error){let message=error.message;try{message=(await error.context.json()).error||message;}catch{}throw new Error(message);}
- if(data.error)throw new Error(data.error);return data;
+ const {data:{session},error}=await db.auth.getSession();
+ if(error||!session?.access_token)throw new Error('Sua sessão expirou. Entre novamente.');
+ let response;
+ try{response=await fetch('/api/gateway',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(45000)});}
+ catch(e){throw new Error(e.name==='TimeoutError'?'A operação demorou a responder. Tente novamente.':'Não foi possível conectar ao serviço. Verifique sua conexão e tente novamente.');}
+ const data=await response.json().catch(()=>null);
+ if(!data)throw new Error('O serviço da aplicação não está disponível nesta publicação.');
+ if(!response.ok||data.error)throw new Error(data.error||'Não foi possível concluir a operação.');
+ return data;
 }
 export async function rpc(name,parameters){requireDatabase();return check(await db.rpc(name,parameters));}

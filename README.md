@@ -46,9 +46,11 @@ Em **Settings → Environment Variables**, configure para **Production** e **Pre
 
 `VITE_SUPABASE_PUBLISHABLE_KEY` também é aceito no lugar de `VITE_SUPABASE_ANON_KEY`. Se ambos estiverem definidos, a chave `ANON_KEY` tem precedência. Remova valores antigos para evitar conectar ao projeto errado.
 
-O `.env` local fica fora do Git e não é transferido para o Vercel. O Vite incorpora as variáveis públicas na compilação: após alterar valores, execute **Redeploy**. Uma compilação no Vercel falha com uma mensagem explícita se a configuração estiver ausente ou inválida, evitando publicar um login permanentemente bloqueado. O login exige somente Supabase Auth, sem servidor Node no Vercel e sem a função `gateway`.
+O `.env` local fica fora do Git e não é transferido para o Vercel. O Vite incorpora as variáveis públicas na compilação: após alterar valores, execute **Redeploy**. Uma compilação no Vercel falha com uma mensagem explícita se a configuração estiver ausente ou inválida. O login usa Supabase Auth; validação persistida, exclusão de regras e GitHub usam a rota autenticada `/api/gateway` no Vercel.
 
-Nunca coloque `DATABASE_URL`, senhas, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ACCESS_TOKEN` ou `GITHUB_TOKEN` em variáveis `VITE_`. Mantenha os segredos de integração no Supabase. Quando usar a função `gateway`, configure seu secret `APP_ORIGIN` com a origem exata do domínio de produção e publique novamente a função; essa configuração não controla o login por senha.
+No servidor, configure `SUPABASE_URL`, uma chave `SUPABASE_SERVICE_ROLE_KEY` ou `SUPABASE_SECRET_KEY`, e uma chave pública `SUPABASE_ANON_KEY` ou `SUPABASE_PUBLISHABLE_KEY`. Os nomes públicos `VITE_SUPABASE_*` também são aceitos pelo servidor como alternativa para a URL e a chave pública. Integrações Supabase no Vercel podem já fornecer essas variáveis. Para o GitHub, configure `GITHUB_TOKEN`, `GITHUB_OWNER`, `GITHUB_REPO` e `GITHUB_BASE_BRANCH`. Todos devem apontar para o projeto e o repositório de regras já utilizados.
+
+Nunca adicione prefixo `VITE_` a senhas, `DATABASE_URL`, chaves de servidor ou tokens. O middleware local do Vite atende à mesma rota com os valores do `.env`, sem incorporá-los ao JavaScript do navegador. A função Edge permanece como adaptador opcional do mesmo código, sem ser exigida pelo frontend do Vercel. A documentação da [API Node no Vercel](https://vercel.com/docs/frameworks/frontend/vite) descreve o diretório `api/` utilizado aqui.
 
 Referências: [variáveis no Vercel](https://vercel.com/docs/environment-variables) e [variáveis e modos no Vite](https://vite.dev/guide/env-and-mode).
 
@@ -91,7 +93,7 @@ Contas internas usam `usuario@hadsec.local` apenas como identidade do Supabase A
 
 ## GitHub
 
-No `.env`, configure `GITHUB_OWNER`, `GITHUB_REPO`, `GITHUB_BASE_BRANCH` (padrão `main`) e `GITHUB_TOKEN`. O repositório deve existir com um commit na branch base. Token com acesso somente ao repositório, permissões **Contents: Read and write**, **Pull requests: Read and write** e Metadata de leitura. Execute novamente `npm run provision -- deploy` para atualizar secrets.
+No `.env` local e nas variáveis de servidor do Vercel, configure `GITHUB_OWNER`, `GITHUB_REPO`, `GITHUB_BASE_BRANCH` (padrão `main`) e `GITHUB_TOKEN`. O repositório deve existir com um commit na branch base. Token com acesso somente ao repositório, permissões **Contents: Read and write**, **Pull requests: Read and write** e Metadata de leitura. O comando `npm run provision -- deploy` atualiza apenas o adaptador Edge opcional; o Vercel recebe seus próprios valores de ambiente no redeploy.
 
 Uma publicação cria `hadsec/<id-da-solicitação>` e grava `rules/<id-da-regra>/v<N>.xml` ou `.sql`. O PR registra versão, hash e parecer. O aplicativo não faz merge e não ativa regras no SIEM. Se um PR for fechado sem merge, reabra-o antes de repetir o envio.
 
@@ -119,6 +121,16 @@ Para os testes de navegador, inicie `npm run dev` e execute `node tests/browser.
 
 ## Arquitetura
 
-React + Vite no navegador → Supabase Auth/PostgREST com JWT e RLS → RPCs PostgreSQL para contas e transições protegidas. A Edge Function `gateway` executa a análise estática sobre o conteúdo persistido e integra o GitHub. A chave de serviço nunca chega ao navegador. Cada versão tem conteúdo, autor, justificativa e hash; qualquer ajuste gera outra versão.
+React + Vite no navegador → Supabase Auth/PostgREST com JWT e RLS → RPCs PostgreSQL para contas e transições protegidas. A rota Node `/api/gateway` executa a análise estática sobre o conteúdo persistido, arquiva regras de teste e integra o GitHub. Ela verifica o usuário, a conta ativa, a troca de senha inicial e as permissões individuais em cada requisição. O adaptador Edge opcional usa o mesmo `server/gateway.mjs`. A chave de serviço nunca chega ao navegador. Cada versão tem conteúdo, autor, justificativa e hash; qualquer ajuste gera outra versão.
+
+## Revisão da interface e do fluxo
+
+A revisão de 06/11/2026 permanece local até aprovação da publicação. Execute `npm run dev` e abra `http://127.0.0.1:5173`. O login continua real; não existe modo demonstração. `node tests/review-browser.mjs` testa os novos fluxos com serviços interceptados exclusivamente pelo Playwright, sem tocar no banco real. Capturas ficam em `artifacts/review/`, fora do Git.
+
+Exclusão de regra exige `rules.write` e confirmação do nome exato. Ela marca `rules.archived`, preservando versões e auditoria. Regras ligadas a solicitações em andamento ou publicadas são protegidas. Nenhuma migração de banco é necessária para esta revisão.
+
+A criação pelo detalhe de uma solicitação carrega seu contexto no editor; ao salvar uma versão válida, a plataforma a vincula à solicitação existente. Falhas posteriores ao salvamento não mantêm um formulário que possa duplicar a versão. As notificações são atualizadas ao focar a janela e a cada 45 segundos; o estado de leitura é local e separado por usuário.
+
+`node --env-file=.env tests/live-gateway.mjs` executa o teste integrado explícito na prévia: cria uma conta e uma regra temporárias, verifica login real, persistência da validação, exclusão pelo navegador, auditoria e acesso de leitura ao GitHub. Os registros temporários são removidos ao final, sem criar PRs ou alterar contas existentes.
 
 Bibliotecas utilizadas são gratuitas. Supabase e GitHub estão sujeitos aos limites dos planos utilizados; o projeto não contrata planos ou APIs pagas. Configure cópias de segurança e retenção de acordo com a sua operação; exclusão de evidências e auditoria não é exposta ao usuário.
