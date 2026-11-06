@@ -14,6 +14,7 @@ test('PostgreSQL: RLS, imutabilidade, revisão, evidências e publicação',asyn
  await pg.exec(await readFile(new URL('../supabase/migrations/202611050004_native_password_change.sql',import.meta.url),'utf8'));
  await pg.exec(await readFile(new URL('../supabase/migrations/202611050005_managed_accounts.sql',import.meta.url),'utf8'));
  await pg.exec(await readFile(new URL('../supabase/migrations/202611060006_admin_approval.sql',import.meta.url),'utf8'));
+ await pg.exec(await readFile(new URL('../supabase/migrations/202611060007_record_deletion.sql',import.meta.url),'utf8'));
  const engineer='00000000-0000-4000-8000-000000000001',reviewer='00000000-0000-4000-8000-000000000002',reader='00000000-0000-4000-8000-000000000003',admin='00000000-0000-4000-8000-000000000004';
  for(const [id,role] of [[engineer,'Engenheiro'],[reviewer,'Revisor'],[reader,'Leitor'],[admin,'Administrador']]){await pg.query('insert into auth.users(id) values($1)',[id]);await pg.query(`insert into profiles(id,username,display_name,role_id,must_change_password) select $1,$2,$2,id,false from roles where name=$3`,[id,'user'+id.slice(-1),role]);}
  const as=async id=>{await pg.exec('reset role');await pg.query("select set_config('request.jwt.claim.sub',$1,false)",[id]);await pg.exec('set role authenticated');};

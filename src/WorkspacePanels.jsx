@@ -2,6 +2,8 @@ import React,{useEffect,useState} from 'react';
 import {Plug,KeyRound,Info,Database,ShieldCheck,Github,Server,RotateCcw,Loader2,ArrowUpRight,ExternalLink,Search,X,Download,ScrollText,GitPullRequest,AlertTriangle,LogOut} from 'lucide-react';
 import {gateway} from './api';
 import {actionLabel,auditEntityLabel,filterAuditEvents} from './audit-search.mjs';
+import {Trash2} from 'lucide-react';
+import {requestVisible,submissionVisible} from './record-visibility.mjs';
 
 const Pill=({ok,children})=><span className={`badge ${ok?'green':'amber'}`}><span className="dot"/>{children}</span>;
 
@@ -14,16 +16,16 @@ export function AuditPage({data,name,Avatar,onExport}){
  </>;
 }
 
-export function GitHubWorkspace({data,allowed,busy,run}){
+export function GitHubWorkspace({data,allowed,busy,run,onDelete}){
  const [status,setStatus]=useState(null),[error,setError]=useState(''),[loading,setLoading]=useState(false);
  const check=async()=>{if(!allowed)return;setLoading(true);setError('');try{setStatus(await gateway('github.status'));}catch(e){setStatus(null);setError(e.message);}finally{setLoading(false);}};
  useEffect(()=>{check();},[allowed]);
- const ready=status?.connected,approved=data.requests.filter(q=>q.status==='approved'),sent=data.requests.filter(q=>q.status==='published');
+ const ready=status?.connected,approved=data.requests.filter(q=>requestVisible(q)&&q.status==='approved'),sent=data.requests.filter(submissionVisible);
  return <><div className="page-heading"><div><h1>GitHub<span className="title-dot">.</span></h1><p>Versões aprovadas, encaminhadas como pull requests.</p></div>{allowed&&<button className="btn" disabled={loading} onClick={check}>{loading?<Loader2 className="spin" size={17}/>:<RotateCcw size={17}/>}Verificar conexão</button>}</div>
   <section className="panel github-connect"><span className="github-large"><Github size={35}/></span><div><h2>{status?.repository||'Integração GitHub'}</h2><p>{!allowed?'Seu perfil permite acompanhar o histórico de envios.':loading?'Verificando acesso ao repositório…':ready?`Branch base: ${status.branch}`:status?.configured?'Confira o acesso à branch e ao repositório.':'Configure o repositório e a credencial no servidor.'}</p></div><Pill ok={ready}>{!allowed?'Consulta':loading?'Verificando':ready?'Conectado':error?'Indisponível':'Pendente'}</Pill></section>
   {(error||status?.error)&&<div className="inline-alert error-text" role="alert"><AlertTriangle size={19}/><span>{error||status.error}</span><button className="text-btn" disabled={loading} onClick={check}>Tentar novamente</button></div>}
   <div className="inline-alert"><GitPullRequest size={20}/><span>O envio abre um pull request com a versão aprovada. O merge e a ativação no FortiSIEM continuam com a equipe.</span></div>
   <div className="subheading"><h2>Prontas para envio</h2><span className="count-badge">{approved.length}</span></div><section className="panel">{approved.map(q=><div className="publish-row" key={q.id}><span className="request-icon green"><ShieldCheck size={22}/></span><div><h3>{q.title}</h3><small>v{data.versions.find(v=>v.id===q.version_id)?.number} · Revisão aprovada</small></div><button className="btn primary" disabled={busy||!allowed||!ready} onClick={()=>run(()=>gateway('github.publish',{request_id:q.id}),'Pull request enviado ao GitHub.',false)}><Github size={17}/>Enviar ao GitHub</button></div>)}{!approved.length&&<div className="empty"><ShieldCheck size={32}/><h3>Nenhuma versão aguardando envio</h3><p>As versões aprovadas aparecem aqui.</p></div>}</section>
-  <div className="subheading"><h2>Envios registrados</h2></div><section className="panel">{sent.map(q=><div className="publish-row" key={q.id}><span className="request-icon purple"><GitPullRequest size={22}/></span><div><h3>{q.title}</h3><small>{new Date(q.updated_at).toLocaleDateString('pt-BR')}</small></div>{q.github_url?<a className="btn" href={q.github_url} target="_blank" rel="noreferrer">Pull request<ExternalLink size={16}/></a>:<Pill>Link indisponível</Pill>}</div>)}{!sent.length&&<div className="empty"><Github size={32}/><h3>Nenhum envio registrado</h3></div>}</section>
+  <div className="subheading"><h2>Envios registrados</h2></div><section className="panel">{sent.map(q=><div className="publish-row" key={q.id}><span className="request-icon purple"><GitPullRequest size={22}/></span><div><h3>{q.title}</h3><small>{new Date(q.updated_at).toLocaleDateString('pt-BR')}</small></div>{q.github_url?<a className="btn" href={q.github_url} target="_blank" rel="noreferrer">Pull request<ExternalLink size={16}/></a>:<Pill>Link indisponível</Pill>}{onDelete&&<button className="icon-btn delete-rule-button" disabled={busy} aria-label={"Excluir envio "+q.title} title="Excluir envio da lista" onClick={()=>onDelete(q)}><Trash2 size={18}/></button>}</div>)}{!sent.length&&<div className="empty"><Github size={32}/><h3>Nenhum envio registrado</h3></div>}</section>
  </>;
 }

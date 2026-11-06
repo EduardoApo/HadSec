@@ -12,6 +12,8 @@ Engenharia e versionamento de regras para **FortiSIEM 7.5.1.0620**. Interface em
 - Menu compacto por padrão no desktop, tooltips por opção e expansão persistida no navegador. No celular, o menu abre completo.
 - Definições XML preservadas e consultas SQL ClickHouse, versões imutáveis e hash SHA-256.
 - Solicitações de ajustes, discussão e associação de uma versão validada. Perfis comuns exigem outro revisor; o Administrador do sistema pode aprovar o próprio trabalho, com justificativa, evidência e auditoria.
+- Exclusão de solicitações na lista ou nos detalhes, com confirmação pelo título. Por padrão, exclusiva da conta proprietária HadSec; a regra, as versões e a auditoria são preservadas.
+- Exclusão de envios da lista GitHub exclusiva da conta proprietária HadSec, vinculada ao ID da conta no banco. Outros administradores não herdam essa autorização. Pull requests e arquivos no GitHub são preservados; uma versão publicada continua protegida contra reenvio.
 - Comparação entre versões, importação e download da definição.
 - Laboratório de análise estática; evidências de homologação vinculadas à versão.
 - Aprovação exige teste declarado no FortiSIEM; revisão manual isolada não libera publicação.

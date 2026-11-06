@@ -74,7 +74,7 @@ export function createGateway({env={},clientFactory=createClient,fetchImpl=globa
     const [profiles,versions,requests]=await Promise.all([
      fetchRows('profiles','id,display_name',validIds(events.map(e=>e.actor_id))),
      fetchRows('rule_versions','id,rule_id,number',validIds(events.filter(e=>e.action.startsWith('version.')||e.action==='evidence.recorded').map(e=>e.entity_id))),
-     fetchRows('change_requests','id,title',validIds(events.filter(e=>e.action.startsWith('request.')||e.action==='github.pr_created').map(e=>e.entity_id)))
+     fetchRows('change_requests','id,title,deleted_at,github_hidden_at',validIds(events.filter(e=>e.action.startsWith('request.')||e.action==='github.pr_created').map(e=>e.entity_id)))
     ]);
     const rules=await fetchRows('rules','id,name',validIds([...versions.map(v=>v.rule_id),...events.filter(e=>e.action==='rule.archived').map(e=>e.entity_id)]));
     return reply({items:buildNotifications({events,profiles,versions,requests,rules}),checkedAt:new Date().toISOString()});
@@ -95,8 +95,8 @@ export function createGateway({env={},clientFactory=createClient,fetchImpl=globa
     if(!rule)throw new GatewayError('Regra não encontrada.',404);
     if(body.confirmation!==rule.name)throw new GatewayError('Digite o nome exato da regra para confirmar.');
     if(rule.archived)return reply({ok:true,archived:true});
-    const active=await checked(admin.from('change_requests').select('id').eq('rule_id',rule.id).in('status',['requested','review','changes','approved','published']).limit(1));
-    if(active.length)throw new GatewayError('Esta regra está vinculada a uma solicitação em andamento ou publicada. Preserve o fluxo antes de excluí-la.',409,'RULE_IN_USE');
+    const linked=await checked(admin.from('change_requests').select('id').eq('rule_id',rule.id).in('status',['requested','review','changes','approved','published']).or('status.eq.published,deleted_at.is.null').limit(1));
+    if(linked.length)throw new GatewayError('Esta regra está vinculada a uma solicitação em andamento ou publicada. Preserve o fluxo antes de excluí-la.',409,'RULE_IN_USE');
     await checked(admin.from('rules').update({archived:true}).eq('id',rule.id).eq('archived',false));
     await audit('rule.archived',rule.id,{name:rule.name});
     return reply({ok:true,archived:true});
@@ -111,7 +111,7 @@ export function createGateway({env={},clientFactory=createClient,fetchImpl=globa
     permit('github.publish');
     if(!githubConfigured())throw new GatewayError('A integração GitHub ainda não está configurada.',503,'GITHUB_NOT_CONFIGURED');
     const r=await checked(client.from('change_requests').select('*,rule_versions(*),rules(*)').eq('id',uuid(body.request_id)).maybeSingle());
-    if(!r||r.rules?.archived)throw new GatewayError('Solicitação indisponível.',404);
+    if(!r||r.deleted_at||r.rules?.archived)throw new GatewayError('Solicitação indisponível.',404);
     if(r.status==='published')return reply({ok:true,url:r.github_url});
     // Database RPC checks approval, evidence, caller and exclusive export lease.
     await checked(client.rpc('claim_export',{p_request:r.id}));

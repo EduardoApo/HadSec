@@ -35,10 +35,14 @@ async function all(table){
 export async function loadData(onProgress){
  requireDatabase();
  let completed=0;const tables=['roles','profiles','rules','rule_versions','change_requests','test_evidence','comments','audit_events','permission_definitions','user_permission_overrides'];
- const [roles,profiles,rules,versions,requests,evidence,comments,audit,permissionDefinitions,overrides]=await Promise.all(tables.map(async table=>{const rows=await all(table);if(typeof onProgress==='function')onProgress(++completed,tables.length);return rows;}));
+ const reportProgress=()=>{if(typeof onProgress==='function')onProgress(++completed,tables.length+1);};
+ const [[roles,profiles,rules,versions,requests,evidence,comments,audit,permissionDefinitions,overrides],capabilities]=await Promise.all([
+  Promise.all(tables.map(async table=>{const rows=await all(table);reportProgress();return rows;})),
+  rpc('record_capabilities').then(value=>{reportProgress();return value;})
+ ]);
  audit.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
  Object.assign(permissions,Object.fromEntries(permissionDefinitions.map(d=>[d.key,d.label])));
- return {roles,profiles,rules,versions,requests,evidence,comments,audit,permissionDefinitions,overrides};
+ return {roles,profiles,rules,versions,requests,evidence,comments,audit,permissionDefinitions,overrides,capabilities};
 }
 export async function loadRequests(){requireDatabase();return all('change_requests');}
 export async function gateway(action,payload={}){

@@ -12,7 +12,7 @@ function setup({permissions=['rules.write','github.publish'],overrides=[],conten
  const calls=[];
  function from(table){
   const filters=[];let mutation=null,values,single=false,limit=Infinity;
-  const query={select(){return query;},order(){return query;},eq(key,value){filters.push(row=>row[key]===value);return query;},in(key,values){filters.push(row=>values.includes(row[key]));return query;},limit(value){limit=value;return query;},maybeSingle(){single=true;return query;},update(value){mutation='update';values=value;return query;},insert(value){mutation='insert';values=value;return query;},then(resolve,reject){return Promise.resolve().then(()=>{calls.push({table,mutation});let rows=tables[table].filter(row=>filters.every(fn=>fn(row))).slice(0,limit);if(mutation==='update')for(const row of rows)Object.assign(row,values);if(mutation==='insert'){tables[table].push(values);rows=[values];}return {data:single?rows[0]||null:rows,error:null};}).then(resolve,reject);}};return query;
+  const query={select(){return query;},order(){return query;},eq(key,value){filters.push(row=>row[key]===value);return query;},in(key,values){filters.push(row=>values.includes(row[key]));return query;},or(expression){assert.equal(expression,'status.eq.published,deleted_at.is.null');filters.push(row=>row.status==='published'||!row.deleted_at);return query;},limit(value){limit=value;return query;},maybeSingle(){single=true;return query;},update(value){mutation='update';values=value;return query;},insert(value){mutation='insert';values=value;return query;},then(resolve,reject){return Promise.resolve().then(()=>{calls.push({table,mutation});let rows=tables[table].filter(row=>filters.every(fn=>fn(row))).slice(0,limit);if(mutation==='update')for(const row of rows)Object.assign(row,values);if(mutation==='insert'){tables[table].push(values);rows=[values];}return {data:single?rows[0]||null:rows,error:null};}).then(resolve,reject);}};return query;
  }
  const api={auth:{async getUser(token){calls.push({auth:true});return token==='valid'?{data:{user:{id:userId}},error:null}:{data:{user:null},error:{message:'invalid token'}};}},from,async rpc(name){calls.push({rpc:name});const request=tables.change_requests[0];if(name==='claim_export'&&request?.status!=='approved')return {data:null,error:{message:'Aprovação pendente'}};return {data:null,error:null};}};
  const env={SUPABASE_URL:'https://example.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'server-service-key',SUPABASE_ANON_KEY:'public-key',...(github?{GITHUB_TOKEN:'private-github-token',GITHUB_OWNER:'example',GITHUB_REPO:'rules'}:{})};
@@ -58,6 +58,20 @@ test('Gateway: GitHub status checks real access without exposing credentials',as
  const pending=setup({github:false});assert.equal((await pending.request('github.status')).body.configured,false);assert.equal(pending.outbound.length,0);
  const unavailable=setup({fetchImpl:async()=>Response.json({message:'Not Found'},{status:404})});const status=await unavailable.request('github.status');assert.equal(status.status,200);assert.equal(status.body.connected,false);assert.ok(status.body.error);
  assert.equal((await setup({permissions:[]}).request('github.status')).status,403);
+});
+
+test('Gateway: deleted requests cannot publish; deleted unpublished reviews release rule exclusion',async()=>{
+ for(const requestStatus of ['approved','published']){
+  const f=setup({requestStatus});Object.assign(f.tables.change_requests[0],{deleted_at:'2026-11-06T12:00:00Z',github_hidden_at:'2026-11-06T12:00:00Z'});
+  assert.equal((await f.request('github.publish',{request_id:requestId,status:'approved',deleted_at:null})).status,404);assert.equal(f.outbound.length,0);assert.equal(f.calls.some(call=>call.rpc==='claim_export'),false);
+ }
+ for(const requestStatus of ['requested','review','changes','approved']){
+  const f=setup({requestStatus});f.tables.change_requests[0].deleted_at='2026-11-06T12:00:00Z';
+  assert.equal((await f.request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste'})).status,200);
+ }
+ const published=setup({requestStatus:'published'});published.tables.change_requests[0].deleted_at='2026-11-06T12:00:00Z';
+ assert.equal((await published.request('rule.archive',{rule_id:ruleId,confirmation:'Regra de teste'})).status,409);
+ const notifications=setup({requestStatus:'published'});Object.assign(notifications.tables.change_requests[0],{deleted_at:'2026-11-06T12:00:00Z'});notifications.tables.audit_events.push({id:1,action:'request.created',entity_id:requestId},{id:2,action:'github.pr_created',entity_id:requestId});assert.deepEqual((await notifications.request('notifications.list')).body.items,[]);
 });
 test('Gateway: export requires the database approval before any GitHub operation',async()=>{
  const f=setup({requestStatus:'review'});const r=await f.request('github.publish',{request_id:requestId,status:'approved'});assert.equal(r.status,400);assert.equal(f.outbound.length,0);assert.equal(f.tables.change_requests[0].status,'review');

@@ -1,9 +1,10 @@
+import {requestVisible} from './record-visibility.mjs';
 const dayKey=date=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
 export function buildReport(data,days=30,now=new Date()){
  days=[7,30,90].includes(Number(days))?Number(days):30;
  const start=new Date(now);start.setHours(0,0,0,0);start.setDate(start.getDate()-days+1);
  const within=row=>{const time=new Date(row.created_at).getTime();return Number.isFinite(time)&&time>=start.getTime()&&time<=now.getTime();};
- const rules=data.rules.filter(row=>!row.archived&&within(row)),versions=data.versions.filter(within),requests=data.requests.filter(within),evidence=data.evidence.filter(within);
+ const rules=data.rules.filter(row=>!row.archived&&within(row)),versions=data.versions.filter(within),requests=data.requests.filter(row=>requestVisible(row)&&within(row)),evidence=data.evidence.filter(within);
  const daily=Array.from({length:days},(_,i)=>{const date=new Date(start);date.setDate(date.getDate()+i);return {date:dayKey(date),label:date.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}),versions:0,requests:0};});
  for(const [rows,key]of [[versions,'versions'],[requests,'requests']])for(const row of rows){const bucket=daily.find(day=>day.date===dayKey(new Date(row.created_at)));if(bucket)bucket[key]++;}
  const statuses=[['requested','Solicitadas','#72aaf0'],['review','Em revisão','#f3c76c'],['changes','Em ajuste','#ed9b60'],['approved','Aprovadas','#b5ed59'],['published','Publicadas','#b39aee'],['rejected','Rejeitadas','#ed8792']].map(([key,label,color])=>({key,label,color,count:requests.filter(r=>r.status===key).length}));

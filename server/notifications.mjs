@@ -1,7 +1,10 @@
 export const notificationActions=['version.created','version.validated','rule.archived','request.created','request.version_attached','request.approved','request.changes','request.rejected','evidence.recorded','github.pr_created'];
 
 export function buildNotifications({events,profiles,versions,rules,requests}){
- return events.map(event=>{
+ return events.filter(event=>{
+  const request=requests.find(q=>q.id===event.entity_id);
+  return !request?.deleted_at&&!(event.action==='github.pr_created'&&request?.github_hidden_at);
+ }).map(event=>{
   const actor=profiles.find(p=>p.id===event.actor_id)?.display_name||'Sistema';
   const version=versions.find(v=>v.id===event.entity_id);
   const request=requests.find(q=>q.id===event.entity_id);
