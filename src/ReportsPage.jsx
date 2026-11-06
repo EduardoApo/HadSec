@@ -1,5 +1,5 @@
 import React,{useEffect,useId,useMemo,useRef,useState} from 'react';
-import {BarChart3,GitPullRequest,GitBranch,ShieldCheck,Download,ArrowUpRight,Activity,CalendarDays,Users,ChevronRight} from 'lucide-react';
+import {BarChart3,GitPullRequest,GitBranch,ShieldCheck,Download,ArrowUpRight,Activity,CalendarDays,Users,ChevronRight,FileDown,Loader2,AlertTriangle} from 'lucide-react';
 import {buildReport,reportCSV} from './reporting.mjs';
 
 function Count({value,suffix=''}){
@@ -39,10 +39,13 @@ function Distribution({items}){
 }
 export function ReportsPage({data,onRequest,onExport}){
  const [days,setDays]=useState(30);
+ const [exporting,setExporting]=useState(false),[exportError,setExportError]=useState(''),[exportResult,setExportResult]=useState('');
  const report=useMemo(()=>buildReport(data,days),[data,days]);
+ const exportPDF=async()=>{setExporting(true);setExportError('');setExportResult('');try{const {downloadReportPDF}=await import('./report-pdf.mjs');const result=await downloadReportPDF(report);setExportResult('PDF gerado com '+result.pages+' páginas.');}catch{setExportError('Não foi possível gerar o PDF. Tente novamente.');}finally{setExporting(false);}};
  const maxSeverity=Math.max(1,...report.severity.map(item=>item.count)),maxPeople=Math.max(1,...report.collaborators.map(item=>item.count));
  const cards=[[GitBranch,'Versões criadas',report.metrics.versions,'Versões no período','lime'],[GitPullRequest,'Solicitações',report.metrics.requests,'Pedidos criados no período','blue'],[ShieldCheck,'Aprovações',report.metrics.approved,'Aprovadas ou publicadas','purple'],[Activity,'Taxa de aprovação',report.metrics.approvalRate,'Entre decisões concluídas','amber']];
- return <div className="reports-page"><div className="page-heading"><div><h1>Relatórios<span className="title-dot">.</span></h1><p>Da criação à aprovação, acompanhe a evolução da equipe.</p></div><button className="btn" onClick={()=>onExport(reportCSV(report))}><Download size={17}/>Exportar CSV</button></div>
+ return <div className="reports-page"><div className="page-heading"><div><h1>Relatórios<span className="title-dot">.</span></h1><p>Da criação à aprovação, acompanhe a evolução da equipe.</p></div><div className="report-export-actions"><button className="btn" onClick={()=>onExport(reportCSV(report))}><Download size={17}/>CSV</button><button className="btn primary" disabled={exporting} onClick={exportPDF}>{exporting?<Loader2 className="spin" size={17}/>:<FileDown size={17}/>} {exporting?'Gerando PDF…':'Exportar PDF'}</button></div></div>
+  {exportError&&<div className="inline-alert error-text" role="alert"><AlertTriangle size={18}/>{exportError}</div>}{exportResult&&<p className="report-export-feedback" role="status">{exportResult}</p>}
   <div className="report-period"><div><CalendarDays size={18}/><span>{new Date(report.start).toLocaleDateString('pt-BR')} — {new Date(report.end).toLocaleDateString('pt-BR')}</span></div><div className="period-options" role="group" aria-label="Período do relatório">{[7,30,90].map(value=><button key={value} aria-pressed={days===value} className={days===value?'active':''} onClick={()=>setDays(value)}>{value} dias</button>)}</div></div>
   <div className="report-kpis">{cards.map(([Icon,label,value,note,color],index)=><section className={'report-kpi '+color} key={label} style={{'--enter-delay':index*65+'ms'}}><div><span>{label}</span><Icon size={21}/></div><strong><Count value={value} suffix={label==='Taxa de aprovação'?'%':''}/></strong><p>{note}</p></section>)}</div>
   <div className="report-primary-grid"><section className="panel report-panel"><div className="report-panel-heading"><div><h2>Atividade da equipe</h2><p>Versões e solicitações por dia.</p></div><BarChart3 size={21}/></div><ActivityChart rows={report.daily}/></section><section className="panel report-panel"><div className="report-panel-heading"><div><h2>Fluxo de solicitações</h2><p>Distribuição por etapa.</p></div><GitPullRequest size={21}/></div><Distribution items={report.statuses}/></section></div>

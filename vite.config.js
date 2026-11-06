@@ -9,5 +9,5 @@ export default defineConfig(({command,mode})=>{
  }
  const runtimeEnv={...loadEnv(mode,process.cwd(),''),...process.env};
  const localApi={name:'hadsec-local-api',configureServer(server){server.middlewares.use('/api/gateway',nodeGateway(runtimeEnv));},configurePreviewServer(server){server.middlewares.use('/api/gateway',nodeGateway(runtimeEnv));}};
- return {plugins:[react(),localApi],build:{target:'es2022',sourcemap:false,rollupOptions:{output:{manualChunks:{react:['react','react-dom'],supabase:['@supabase/supabase-js'],xml:['fast-xml-parser']}}}}};
+ return {plugins:[react(),localApi],optimizeDeps:{include:['jspdf']},build:{target:'es2022',sourcemap:false,rollupOptions:{output:{manualChunks:{react:['react','react-dom'],supabase:['@supabase/supabase-js'],xml:['fast-xml-parser']}}}}};
 });

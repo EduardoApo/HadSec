@@ -67,11 +67,19 @@ test('PostgreSQL: RLS, imutabilidade, revisão, evidências e publicação',asyn
  await pg.query("select decide_request($1,'approved','Aprovação administrativa com evidência')",[ownRequest]);
  assert.equal((await pg.query('select reviewed_by from change_requests where id=$1',[ownRequest])).rows[0].reviewed_by,admin);
  assert.equal((await pg.query("select detail->>'administrator_self_approval' as self_approval from audit_events where action='request.approved' and entity_id=$1",[ownRequest])).rows[0].self_approval,'true');
+ const otherOwnVersion=(await pg.query("select save_rule($1,'Regra do administrador','Teste administrativo','Alta','T1110','Scheduled via SQL','sql','SELECT eventType FROM fsiem.events LIMIT 10','Nova versão',1)",[ownRule])).rows[0].save_rule;
+ await pg.exec('reset role');await pg.query('update rule_versions set validated=true where id=$1',[otherOwnVersion]);await as(admin);
+ for(const decision of ['changes','rejected']){
+  const request=(await pg.query("select create_request('Decisão administrativa','Decisão própria sem segundo revisor',$1,$2)",[ownRule,otherOwnVersion])).rows[0].create_request;
+  await pg.query('select decide_request($1,$2,$3)',[request,decision,'Justificativa administrativa de teste']);
+  assert.equal((await pg.query('select status from change_requests where id=$1',[request])).rows[0].status,decision);
+  assert.equal((await pg.query("select detail->>'administrator_self_decision' as administrative from audit_events where entity_id=$1 and action=$2",[request,'request.'+decision])).rows[0].administrative,'true');
+ }
  await as(engineer);const normalVersion=(await pg.query("select save_rule(null,'Regra com revisão comum','Teste de revisão comum','Alta','T1110','Scheduled via SQL','sql','SELECT eventType FROM fsiem.events','Inicial',0)")).rows[0].save_rule;
  const normalRule=(await pg.query('select rule_id from rule_versions where id=$1',[normalVersion])).rows[0].rule_id;
  await pg.exec('reset role');await pg.query('update rule_versions set validated=true where id=$1',[normalVersion]);await as(reviewer);
  const normalRequest=(await pg.query("select create_request('Revisão comum','Pedido criado pelo revisor',$1,$2)",[normalRule,normalVersion])).rows[0].create_request;
- await assert.rejects(pg.query("select decide_request($1,'approved','Tentativa própria')",[normalRequest]),/outro revisor/);
+ for(const decision of ['approved','changes','rejected'])await assert.rejects(pg.query('select decide_request($1,$2,$3)',[normalRequest,decision,'Tentativa própria']),/outro revisor/);
  await pg.exec('reset role');await assert.rejects(pg.query('update change_requests set reviewed_by=$1 where id=$2',[reviewer,normalRequest]),/outro revisor/);
  await pg.exec("reset role; select set_config('request.jwt.claim.sub','',false); set role anon;");await assert.rejects(pg.query('select * from rule_versions'),/permission denied/);
  }finally{await pg.close();}

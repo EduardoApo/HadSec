@@ -12,7 +12,7 @@ export function buildReport(data,days=30,now=new Date()){
  const severity=[['Crítica','#ed8792'],['Alta','#ed9b60'],['Média','#f3c76c'],['Baixa','#72aaf0']].map(([label,color])=>({label,color,count:rules.filter(r=>r.severity===label).length}));
  const people=new Map();for(const row of [...versions,...requests,...evidence]){const person=data.profiles.find(p=>p.id===row.created_by);const entry=people.get(row.created_by)||{id:row.created_by,name:person?.display_name||'Usuário',count:0};entry.count++;people.set(row.created_by,entry);}
  const collaborators=[...people.values()].sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name)).slice(0,5);
- const pending=requests.filter(r=>['requested','review','changes'].includes(r.status)).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+ const pending=requests.filter(r=>['requested','review','changes'].includes(r.status)).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).map(request=>({...request,author:data.profiles.find(person=>person.id===request.created_by)?.display_name||'Usuário'}));
  return {days,start:start.toISOString(),end:now.toISOString(),daily,statuses,severity,collaborators,pending,metrics:{versions:versions.length,requests:requests.length,approved,approvalRate:completed.length?Math.round(approved/completed.length*100):null,evidencePassed:evidence.filter(e=>e.result==='pass').length},scope:'Solicitações e registros criados no período; resultados refletem o estado atual.'};
 }
 export function reportCSV(report){

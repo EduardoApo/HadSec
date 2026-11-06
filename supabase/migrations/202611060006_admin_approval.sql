@@ -40,7 +40,7 @@ begin
    and not exists(select 1 from test_evidence later where later.version_id=e.version_id and later.created_at>e.created_at and later.result='fail')) then raise exception 'Registre teste aprovado no FortiSIEM para esta versão'; end if;
  end if;
  update change_requests set status=p_decision,reviewed_by=auth.uid(),review_note=trim(p_note),updated_at=now() where id=r.id;
- perform audit('request.'||p_decision,r.id::text,jsonb_build_object('note',trim(p_note),'administrator_self_approval',administrator and own_work and p_decision='approved'));
+ perform audit('request.'||p_decision,r.id::text,jsonb_build_object('note',trim(p_note),'administrator_self_decision',administrator and own_work,'administrator_self_approval',administrator and own_work and p_decision='approved'));
 end $$;
 
 commit;
