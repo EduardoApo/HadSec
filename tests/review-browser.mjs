@@ -7,7 +7,7 @@ import {validateRule} from '../supabase/functions/_shared/validator.mjs';
 import {sampleSQL} from '../src/rule-templates.js';
 import {buildNotifications} from '../server/notifications.mjs';
 
-const base='http://127.0.0.1:5173',date=new Date(Date.now()-3600000).toISOString();
+const base=process.env.TEST_APP_URL||'http://127.0.0.1:5173',date=new Date(Date.now()-3600000).toISOString();
 const admin='00000000-0000-4000-8000-000000000001',reader='00000000-0000-4000-8000-000000000002';
 const draftId='00000000-0000-4000-8000-000000000003',versionId='00000000-0000-4000-8000-000000000004',requestId='00000000-0000-4000-8000-000000000005';
 const data={
@@ -28,14 +28,31 @@ for(let day=1;day<42;day++){
 let githubFailure=false,validationFailure=false,connectionFailure=false,ownerSession=true;
 const calls=[];
 const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+async function secureContext(options){
+ const context=await browser.newContext(options);
+ if(process.env.TEST_SECURITY_HEADERS==='1'){
+  const config=JSON.parse(await readFile(new URL('../vercel.json',import.meta.url),'utf8'));
+  const headers=Object.fromEntries(config.headers.flatMap(rule=>rule.headers).map(({key,value})=>[key.toLowerCase(),value]));
+  // Enforce the production policy on built HTML; Vite development injects inline HMR code.
+  await context.route(base+'/**',async route=>{
+   if(route.request().resourceType()!=='document')return route.fallback();
+   const response=await route.fetch();await route.fulfill({response,headers:{...response.headers(),...headers}});
+  });
+ }
+ return context;
+}
 await mkdir('artifacts/review',{recursive:true});
 try{
- const login=await browser.newPage({viewport:{width:1440,height:1000}});
+ const loginContext=await secureContext({viewport:{width:1440,height:1000}}),login=await loginContext.newPage();
  await login.goto(base);await login.getByLabel('Usuário',{exact:true}).waitFor();
+ if(process.env.TEST_SECURITY_HEADERS==='1'){
+  const executed=await login.evaluate(()=>{const node=document.createElement('script');node.textContent='window.__hadsecInlineProbe=true';document.head.append(node);node.remove();return window.__hadsecInlineProbe===true;});
+  assert.equal(executed,false,'The production CSP must block injected inline scripts');
+ }
  assert.equal(await login.locator('.login-card .login-logo img').count(),1);assert.equal(await login.locator('.login-brand').count(),0);assert.equal(await login.getByText(/Sua próxima/).count(),0);
  await login.screenshot({path:'artifacts/review/login-desktop.png',fullPage:true,animations:'disabled'});
  await login.setViewportSize({width:390,height:844});await login.screenshot({path:'artifacts/review/login-mobile.png',fullPage:true,animations:'disabled'});await login.close();
- const context=await browser.newContext({viewport:{width:1440,height:1000}});
+ const context=await secureContext({viewport:{width:1440,height:1000}});
  const expires=Math.floor(Date.now()/1000)+3600;
  const token=[btoa(JSON.stringify({alg:'HS256',typ:'JWT'})),btoa(JSON.stringify({sub:admin,role:'authenticated',exp:expires})),'fixture-signature'].join('.');
  await context.addInitScript(({token,expires,admin})=>localStorage.setItem('sb-nsigspmrqqfpcihmixer-auth-token',JSON.stringify({access_token:token,refresh_token:'fixture-refresh',token_type:'bearer',expires_in:3600,expires_at:expires,user:{id:admin,email:'admin@hadsec.local',aud:'authenticated',role:'authenticated',app_metadata:{provider:'email'},user_metadata:{},created_at:'2026-11-06T12:00:00Z'}})),{token,expires,admin});
@@ -118,7 +135,7 @@ try{
  await page.screenshot({path:'artifacts/review/rules-desktop.png',fullPage:true,animations:'disabled'});
  await nav.getByRole('button',{name:'GitHub',exact:true}).click();await page.getByText('Conectado',{exact:true}).waitFor();assert.equal(await page.getByRole('alert').count(),0);
  githubFailure=true;await page.getByRole('button',{name:'Verificar conexão'}).click();await page.getByRole('alert').waitFor();githubFailure=false;await page.getByRole('button',{name:'Tentar novamente'}).click();await page.getByText('Conectado',{exact:true}).waitFor();
- await nav.getByRole('button',{name:'Auditoria',exact:true}).click();const search=page.getByRole('searchbox',{name:'Pesquisar auditoria'});await search.fill('joao solicitacao 2026-11-06');assert.equal(await page.locator('tbody tr').count(),1);await search.fill('temporaria');assert.equal(await page.locator('tbody tr').count(),1);await search.fill('sem-resultados');assert.equal(await page.locator('tbody tr').count(),0);await page.getByRole('button',{name:'Limpar pesquisa de auditoria'}).click();await page.screenshot({path:'artifacts/review/audit-desktop.png',fullPage:true,animations:'disabled'});
+ await nav.getByRole('button',{name:'Auditoria',exact:true}).click();const search=page.getByRole('searchbox',{name:'Pesquisar auditoria'});await search.fill('joao solicitacao '+date.slice(0,10));assert.equal(await page.locator('tbody tr').count(),1);await search.fill('temporaria');assert.equal(await page.locator('tbody tr').count(),1);await search.fill('sem-resultados');assert.equal(await page.locator('tbody tr').count(),0);await page.getByRole('button',{name:'Limpar pesquisa de auditoria'}).click();await page.screenshot({path:'artifacts/review/audit-desktop.png',fullPage:true,animations:'disabled'});
  await page.getByRole('button',{name:'Abrir menu da conta'}).click();await page.getByRole('menuitem',{name:'Alterar senha',exact:true}).click();await page.getByRole('tab',{name:/Alterar senha/}).waitFor();assert.equal(await page.getByRole('tab',{name:/Alterar senha/}).getAttribute('aria-selected'),'true');await page.getByLabel('Senha atual',{exact:true}).waitFor();
  assert.equal(new URL(page.url()).hash,'#profile');await page.screenshot({path:'artifacts/review/profile-desktop.png',fullPage:true,animations:'disabled'});
  await page.getByRole('button',{name:'Configurações',exact:true}).click();assert.equal(await page.getByRole('tab',{name:/Alterar senha/}).count(),0);
