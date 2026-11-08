@@ -48,7 +48,7 @@ export function validateRule(content, format, mode) {
   if(/\bSELECT\s+FROM\b|\bWHERE\s*(GROUP|ORDER|LIMIT|$)|\b(AND|OR)\s*($|GROUP|ORDER|LIMIT)/i.test(sql)) errors.push('Cláusula SQL incompleta.');
   for(const match of sql.matchAll(/\bAS\s+([\w]+)/gi)) {
    const token=match[1],quoted=/^__quoted_(\d+)__$/.exec(token),alias=quoted?scan.quoted[Number(quoted[1])]?.value:token;
-   if(!/^[A-Za-z][A-Za-z0-9]*$/.test(alias||''))errors.push('Aliases de regras SQL devem começar com letra e conter somente letras e números (FortiSIEM 7.5.1).');
+   if(!/^[A-Za-z][A-Za-z0-9]*$/.test(alias||''))errors.push('Aliases de regras SQL devem começar com letra e conter somente letras e números.');
   }
   if(!/\bWHERE\b[\s\S]*\bphRecvTime\b/i.test(sql)) warnings.push('Inclua restrição temporal com phRecvTime no WHERE.');
   if(!/\bLIMIT\s+\d+/i.test(sql)) warnings.push('Use LIMIT durante a investigação para limitar resultados.');

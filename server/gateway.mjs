@@ -1,5 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
-import {validateRule} from '../supabase/functions/_shared/validator.mjs';
+import {validateDetectionRule as validateRule} from '../supabase/functions/_shared/detection-engine.mjs';
+import {formatInfo} from '../supabase/functions/_shared/formats.mjs';
 import {notificationActions,buildNotifications} from './notifications.mjs';
 
 class GatewayError extends Error {
@@ -113,7 +114,7 @@ export function createGateway({env={},clientFactory=createClient,fetchImpl=globa
      const ref=await github('/git/ref/heads/'+encodeURIComponent(base));
      try{await github('/git/ref/heads/'+encodeURIComponent(branch));}
      catch(e){if(!e.message.includes('GitHub 404:'))throw e;await github('/git/refs','POST',{ref:'refs/heads/'+branch,sha:ref.object.sha});}
-     const v=r.rule_versions,path=`rules/${r.rules.id}/v${v.number}.${r.rules.format}`;
+     const v=r.rule_versions,path=`rules/${r.rules.id}/v${v.number}.${formatInfo(r.rules.format).extension}`;
      const bytes=new TextEncoder().encode(v.content);let binary='';
      for(let offset=0;offset<bytes.length;offset+=8192)binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192));
      const content=btoa(binary);let existing;
@@ -123,7 +124,7 @@ export function createGateway({env={},clientFactory=createClient,fetchImpl=globa
      const prs=await github('/pulls?state=all&head='+encodeURIComponent(get('GITHUB_OWNER')+':'+branch));
      let pr=prs.find(p=>p.head.ref===branch);
      if(pr?.state==='closed'&&!pr.merged_at)throw new GatewayError('O pull request foi fechado sem merge. Reabra-o no GitHub antes de reenviar.');
-     if(!pr)pr=await github('/pulls','POST',{title:`${r.rules.name} · v${v.number}`,head:branch,base,body:`Aprovado no HadSec Detect.\n\nFortiSIEM: 7.5.1.0620\nVersão: ${v.id}\nSHA-256: ${v.content_sha256}\nRevisor: ${r.reviewed_by}\n\n${r.review_note}\n\nA importação e ativação no FortiSIEM continuam manuais.`});
+     if(!pr)pr=await github('/pulls','POST',{title:`${r.rules.name} · v${v.number}`,head:branch,base,body:`Aprovado no HadSec Detect.\n\nFormato: ${formatInfo(r.rules.format).label}\nVersão: ${v.id}\nSHA-256: ${v.content_sha256}\nRevisor: ${r.reviewed_by}\n\n${r.review_note}\n\nA importação e ativação no destino continuam manuais.`});
      await checked(admin.from('change_requests').update({status:'published',github_url:pr.html_url,exported_sha:v.content_sha256,export_lease_until:null,updated_at:new Date().toISOString()}).eq('id',r.id).eq('status','approved'));
      await audit('github.pr_created',r.id,{url:pr.html_url,sha256:v.content_sha256});
      return reply({ok:true,url:pr.html_url});

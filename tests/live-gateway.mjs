@@ -30,7 +30,7 @@ try{
  browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
  const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base);await page.getByLabel('Usuário',{exact:true}).fill(label);await page.getByLabel('Senha',{exact:true}).fill(password);await page.getByRole('button',{name:'Entrar no workspace'}).click();await page.getByRole('heading',{name:'Visão geral.'}).waitFor();
- await page.getByRole('navigation',{name:'Navegação principal'}).getByRole('button',{name:'Regras de detecção',exact:true}).click();await page.getByRole('textbox',{name:'Filtrar resultados'}).fill(label);
+ const nav=page.getByRole('navigation',{name:'Navegação principal'});if(await nav.getByRole('button',{name:'Regras de detecção',exact:true}).count()===0)await nav.getByRole('button',{name:'Fluxo de regras',exact:true}).click();await nav.getByRole('button',{name:'Regras de detecção',exact:true}).click();await page.getByRole('textbox',{name:'Filtrar resultados'}).fill(label);
  await page.getByRole('button',{name:'Excluir '+label,exact:true}).click();const modal=page.getByRole('dialog',{name:'Excluir regra'});await modal.getByRole('textbox').fill(label);await modal.getByRole('button',{name:'Excluir regra',exact:true}).click();await modal.waitFor({state:'hidden'});
  const rule=check(await admin.from('rules').select('archived').eq('id',ruleId).single());assert.equal(rule.archived,true);
  assert.equal(check(await admin.from('rule_versions').select('id').eq('rule_id',ruleId)).length,1);

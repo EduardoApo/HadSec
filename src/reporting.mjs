@@ -7,7 +7,7 @@ export function buildReport(data,days=30,now=new Date()){
  const rules=data.rules.filter(row=>!row.archived&&within(row)),versions=data.versions.filter(within),requests=data.requests.filter(row=>requestVisible(row)&&within(row)),evidence=data.evidence.filter(within);
  const daily=Array.from({length:days},(_,i)=>{const date=new Date(start);date.setDate(date.getDate()+i);return {date:dayKey(date),label:date.toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}),versions:0,requests:0};});
  for(const [rows,key]of [[versions,'versions'],[requests,'requests']])for(const row of rows){const bucket=daily.find(day=>day.date===dayKey(new Date(row.created_at)));if(bucket)bucket[key]++;}
- const statuses=[['requested','Solicitadas','#72aaf0'],['review','Em revisão','#f3c76c'],['changes','Em ajuste','#ed9b60'],['approved','Aprovadas','#b5ed59'],['published','Publicadas','#b39aee'],['rejected','Rejeitadas','#ed8792']].map(([key,label,color])=>({key,label,color,count:requests.filter(r=>r.status===key).length}));
+ const statuses=[['requested','Solicitadas','#72aaf0'],['review','Em revisão','#f3c76c'],['changes','Em ajuste','#ed9b60'],['approved','Aprovadas','#b5ed59'],['published','Enviadas','#b39aee'],['rejected','Rejeitadas','#ed8792']].map(([key,label,color])=>({key,label,color,count:requests.filter(r=>r.status===key).length}));
  const completed=requests.filter(r=>['approved','published','rejected'].includes(r.status));
  const approved=completed.filter(r=>r.status!=='rejected').length;
  const severity=[['Crítica','#ed8792'],['Alta','#ed9b60'],['Média','#f3c76c'],['Baixa','#72aaf0']].map(([label,color])=>({label,color,count:rules.filter(r=>r.severity===label).length}));

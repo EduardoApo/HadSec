@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createGateway} from '../server/gateway.mjs';
 import {nodeGateway} from '../api/gateway.js';
 import {Readable} from 'node:stream';
+import {formats} from '../supabase/functions/_shared/formats.mjs';
 
 const userId='00000000-0000-4000-8000-000000000001',ruleId='00000000-0000-4000-8000-000000000002',versionId='00000000-0000-4000-8000-000000000003',requestId='00000000-0000-4000-8000-000000000004';
 function setup({permissions=['rules.write','github.publish'],overrides=[],content='SELECT eventType FROM fsiem.events LIMIT 10',requestStatus,archived=false,mustChange=false,active=true,github=true,fetchImpl,rpcFailure=null}={}){
@@ -89,6 +90,23 @@ test('Gateway: approved export publishes persisted content and records the pull 
  const r=await f.request('github.publish',{request_id:requestId,content:'untrusted'});assert.equal(r.status,200);assert.equal(r.body.url,'https://github.com/example/rules/pull/2');
  const uploaded=JSON.parse(f.outbound.find(x=>x.options.method==='PUT').options.body);assert.equal(atob(uploaded.content),f.tables.rule_versions[0].content);assert.equal(f.tables.change_requests[0].status,'published');assert.equal(f.tables.audit_events[0].action,'github.pr_created');
 });
+test('Gateway: new formats validate persisted definitions and export the correct file extensions',async()=>{
+ for(const format of formats.filter(f=>!['sql','xml'].includes(f.id))){
+  const f=setup({requestStatus:'approved',fetchImpl:async(url,options)=>{
+   if(url.includes('/git/ref/heads/'))return Response.json({object:{sha:'base'}});
+   if(url.includes('/contents/')&&options.method==='GET')return Response.json({message:'Not Found'},{status:404});
+   if(url.includes('/contents/'))return Response.json({content:{sha:'stored'}});
+   if(url.includes('/pulls?'))return Response.json([]);
+   if(url.endsWith('/pulls'))return Response.json({html_url:'https://github.com/example/rules/pull/8'});
+   throw Error('Unexpected endpoint');
+  }});
+  Object.assign(f.tables.rules[0],{format:format.id,mode:format.mode});f.tables.rule_versions[0].content=format.sample;
+  const validation=await f.request('validate',{version_id:versionId});assert.equal(validation.status,200);assert.equal(validation.body.ok,true,format.id);assert.equal(validation.body.format,format.id);
+  const published=await f.request('github.publish',{request_id:requestId});assert.equal(published.status,200);
+  const file=f.outbound.find(call=>call.options.method==='PUT');assert.ok(file.url.endsWith('/v1.'+format.extension));assert.equal(Buffer.from(JSON.parse(file.options.body).content,'base64').toString('utf8'),format.sample);
+ }
+});
+
 test('Gateway: rejects unexpected origins, malformed JSON and missing server secrets',async()=>{
  const f=setup();const blocked=await f.handle(new Request('https://had-sec.vercel.app/api/gateway',{method:'POST',headers:{Origin:'https://other.example'},body:'{}'}));assert.equal(blocked.status,403);
  const malformed=await f.handle(new Request('https://had-sec.vercel.app/api/gateway',{method:'POST',headers:{Authorization:'Bearer valid'},body:'invalid'}));assert.equal(malformed.status,400);

@@ -83,3 +83,24 @@ O HadSec não ativa regras automaticamente no SIEM e não realiza merge automát
 ## Autor
 
 Desenvolvido por [EduardoApo](https://github.com/EduardoApo).
+
+## Formatos e laboratório
+
+O catálogo aceita FortiSIEM XML/SQL, Sigma, KQL Microsoft Kusto, AQL QRadar, EQL Elastic, KQL Kibana, SPL Splunk e YARA. As referências oficiais ficam em **Configurações → Documentação de regras**. A opção de formato determina os parâmetros internos; não é necessário escolher um modo no formulário.
+
+O laboratório faz validação estática parcial e simulação local de eventos. Aceita objeto JSON, lista JSON, NDJSON e texto com campos `chave=valor`. YARA também pode analisar diretamente o texto bruto. Os logs permanecem no navegador; o processamento ocorre em um Web Worker com limite de 2,5 segundos, 200 eventos e 250 KB de entrada.
+
+| Formato | Subconjunto simulado |
+|---|---|
+| Sigma | Mapas e listas, condições booleanas, `1/all of`, `contains`, `startswith`, `endswith`, `all`, `cased` e `exists` |
+| Kusto KQL | Filtros `where`, comparações, listas e operadores de texto/termos; respeita operadores sensíveis e insensíveis a maiúsculas |
+| SQL/AQL | Condições `WHERE`, comparações, `LIKE`, `ILIKE`, listas e booleanos |
+| EQL | Categoria de evento e filtros de valores, com diferenças entre `==` e `:` |
+| Kibana KQL | Comparações em valores JSON tratados como campos `keyword`; o mapping real não é inferido |
+| SPL | `search` e `where`, incluindo suas diferenças de precedência e sensibilidade |
+| YARA | Strings ASCII literais, `ascii`, `nocase`, `fullword` e condições de strings; não analisa binários ou módulos |
+| FortiSIEM XML | Filtro de um subpadrão sem agregação |
+
+O resultado é **Match**, **Sem match** ou **Não suportado**. Correlação, agregações, funções, mappings, módulos, regex e outros recursos fora do subconjunto implementado exigem o motor de destino. Ausência de suporte não é apresentada como uma negativa de detecção. A análise local não substitui a compilação e a homologação no SIEM; a aprovação continua exigindo evidência declarada de teste no destino.
+
+Nas solicitações, **Criar nova regra** registra o formato desejado. **Alterar regra** permite selecionar uma regra cadastrada ou anexar a original. A versão anterior fica imutável, vinculada à solicitação e disponível para comparação e auditoria. A migração `202611080009_multiformat_requests.sql` também impede gateways antigos de validarem formatos que desconhecem.
