@@ -2,6 +2,11 @@ import {createClient} from '@supabase/supabase-js';
 import {validateDetectionRule as validateRule} from '../supabase/functions/_shared/detection-engine.mjs';
 import {formatInfo} from '../supabase/functions/_shared/formats.mjs';
 import {notificationActions,buildNotifications} from './notifications.mjs';
+import {synchronizeAttack} from './attack-catalog.mjs';
+import {synchronizeSigma} from './sigma-catalog.mjs';
+import {evidenceAction} from './evidence.mjs';
+import {synchronizeAtomic} from './atomic-catalog.mjs';
+import {huntingImportAction} from './hunting-imports.mjs';
 
 class GatewayError extends Error {
  constructor(message,status=400,code='REQUEST_FAILED'){super(message);this.status=status;this.code=code;}
@@ -58,6 +63,25 @@ export function createGateway({env={},clientFactory=createClient,fetchImpl=globa
    const audit=(action,entity,detail={})=>checked(admin.from('audit_events').insert({actor_id:user.id,action,entity_id:entity,detail}));
    const client=clientFactory(url,publicKey,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
 
+   if(['hunting.import-preview','hunting.import'].includes(body.action)){
+    permit('hunting.read');permit('hunting.write');
+    try{return reply(await huntingImportAction({body,client,admin,user}));}catch(e){throw new GatewayError(e.message,400,'HUNTING_IMPORT_FAILED');}
+   }
+   if(['evidence.upload-url','evidence.finalize','evidence.download','evidence.cancel'].includes(body.action)){
+    try{return reply(await evidenceAction({body,client,admin,user,audit}));}catch(e){throw new GatewayError(e.message,400,'EVIDENCE_OPERATION_FAILED');}
+   }
+   if(body.action==='atomic.sync'){
+    permit('catalogs.manage');
+    try{return reply(await synchronizeAtomic({client,admin,fetchImpl}));}catch(e){throw new GatewayError(e.message,502,'CATALOG_SYNC_FAILED');}
+   }
+   if(body.action==='sigma.sync'){
+    permit('catalogs.manage');
+    try{return reply(await synchronizeSigma({client,admin,fetchImpl}));}catch(e){throw new GatewayError(e.message,502,'CATALOG_SYNC_FAILED');}
+   }
+   if(body.action==='attack.sync'){
+    permit('catalogs.manage');
+    try{return reply(await synchronizeAttack({client,admin,fetchImpl}));}catch(e){throw new GatewayError(e.message,502,'CATALOG_SYNC_FAILED');}
+   }
    if(body.action==='connections.status'){
     const checkedAt=new Date().toISOString();
     async function probe(operation){const started=Date.now();try{await operation();return {state:'online',latencyMs:Date.now()-started};}catch{return {state:'offline',latencyMs:Date.now()-started};}}

@@ -13,7 +13,7 @@ function Count({value,suffix=''}){
  },[value]);
  return <span aria-label={value===null?'Sem dados':String(value)+suffix}><span aria-hidden="true">{value===null?'—':display.toLocaleString('pt-BR')+suffix}</span></span>;
 }
-function ActivityChart({rows}){
+export function ActivityChart({rows}){
  const [hover,setHover]=useState(null),[visible,setVisible]=useState({versions:true,requests:true});
  const rawId=useId().replaceAll(':',''),width=760,height=240,pad=22;
  const max=Math.max(1,...rows.flatMap(d=>[visible.versions?d.versions:0,visible.requests?d.requests:0]));
@@ -33,7 +33,7 @@ function ActivityChart({rows}){
   </div><div className="chart-axis">{[0,Math.floor(rows.length/2),rows.length-1].map(i=><span key={i}>{rows[i].label}</span>)}</div>
  </>;
 }
-function Distribution({items}){
+export function Distribution({items}){
  const total=items.reduce((sum,item)=>sum+item.count,0),radius=61,circumference=2*Math.PI*radius;let offset=0;
  return <div className="distribution"><div className="report-donut"><svg viewBox="0 0 160 160" role="img" aria-label={items.map(item=>item.label+': '+item.count).join(', ')}><circle cx="80" cy="80" r={radius} fill="none" stroke="#293440" strokeWidth="15"/>{items.filter(item=>item.count).map(item=>{const length=item.count/total*circumference;const segment=<circle key={item.key} className="donut-segment" cx="80" cy="80" r={radius} fill="none" stroke={item.color} strokeWidth="15" strokeDasharray={length+' '+circumference} strokeDashoffset={-offset} transform="rotate(-90 80 80)"/>;offset+=length;return segment;})}</svg><div><strong><Count value={total}/></strong><span>solicitações</span></div></div><ul className="distribution-legend">{items.map(item=><li key={item.key}><i style={{background:item.color}}/><span>{item.label}</span><strong>{item.count}</strong></li>)}</ul></div>;
 }

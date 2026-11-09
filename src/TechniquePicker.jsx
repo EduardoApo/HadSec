@@ -1,0 +1,6 @@
+import React,{useState} from 'react';import {Check,Search,X} from 'lucide-react';
+export function TechniquePicker({options,value,onChange,label='Técnicas MITRE'}){
+ const [query,setQuery]=useState('');const toggle=id=>onChange(value.includes(id)?value.filter(v=>v!==id):[...value,id]);
+ const filtered=options.filter(t=>(t.id+' '+t.name).toLowerCase().includes(query.toLowerCase())).slice(0,12);
+ return <fieldset className="technique-picker"><legend>{label}</legend><div className="technique-chips">{value.map(id=><button type="button" key={id} onClick={()=>toggle(id)} aria-label={'Remover técnica '+id}><code>{id}</code><X size={13}/></button>)}</div><label className="operations-search"><Search size={16}/><input value={query} aria-label="Buscar técnica MITRE" placeholder="ID ou nome da técnica" onChange={e=>setQuery(e.target.value)}/></label><div className="technique-options">{filtered.map(t=><button key={t.id} type="button" aria-pressed={value.includes(t.id)} disabled={value.length>=50&&!value.includes(t.id)} onClick={()=>toggle(t.id)}><code>{t.id}</code><span>{t.name}</span>{value.includes(t.id)&&<Check size={16}/>}</button>)}</div>{!options.length&&<p>Sincronize o catálogo MITRE em Detection Coverage para selecionar técnicas.</p>}{options.length>12&&<small>Pesquise para encontrar outras técnicas. Até 50 vínculos.</small>}</fieldset>;
+}

@@ -1,0 +1,9 @@
+import React from 'react';
+import {Link2,Trash2} from 'lucide-react';
+import {FormField} from './OperationsDialog';
+import {linkAttackSubject} from './operations-api';
+const names={campaign:'Campanha',hypothesis:'Hipótese',validation:'Solicitação de teste'};
+export function AttackSubjectLinks({technique,catalog,can,busy,operate}){
+ const linked=catalog.subjectLinks.filter(l=>l.technique_id===technique),subjects=catalog.subjects;
+ return <><h3>Campanhas, hipóteses e solicitações de teste</h3><div className="attack-linked-list">{linked.map(l=>{const subject=subjects.find(s=>s.id===l.subject_id);return <div key={l.subject_id}><span><strong>{subject?.title||'Registro arquivado'}</strong><small>{names[l.subject_kind]} · {subject?.status}</small></span>{can('coverage.write')&&<button className="icon-btn" disabled={busy} aria-label={'Desvincular '+subject?.title} onClick={()=>operate(()=>linkAttackSubject(technique,l.subject_id,true),'Vínculo operacional removido.')}><Trash2 size={16}/></button>}</div>;})}{!linked.length&&<p>Nenhum vínculo operacional registrado.</p>}</div>{can('coverage.write')&&<form className="operations-inline-form" onSubmit={e=>{e.preventDefault();const form=new FormData(e.currentTarget);operate(()=>linkAttackSubject(technique,form.get('subject')),'Registro relacionado à técnica.');}}><FormField label="Campanha, hipótese ou solicitação de teste"><select name="subject" required defaultValue=""><option value="" disabled>Selecione um registro existente</option>{subjects.filter(s=>!linked.some(l=>l.subject_id===s.id)).map(s=><option key={s.id} value={s.id}>{names[s.kind]} · {s.title}</option>)}</select></FormField><button className="btn" disabled={busy||!subjects.some(s=>!linked.some(l=>l.subject_id===s.id))}><Link2 size={16}/>Relacionar registro</button></form>}</>;
+}

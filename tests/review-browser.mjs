@@ -67,6 +67,7 @@ try{
   const name=url.pathname.split('/').at(-1);
   if(url.pathname.includes('/rpc/')){
    if(name==='record_capabilities')return respond(route,{owner:ownerSession});
+   if(name==='operational_overview')return respond(route,{checked_at:new Date().toISOString(),coverage:null,investigations:null,campaigns:null,'false-positives':null,'query-library':null});
    const p=req.postDataJSON();
    if(['delete_request','hide_github_submission'].includes(name)){
     if(!ownerSession)return respond(route,{message:'Somente o proprietário pode excluir.'},403);
@@ -107,7 +108,17 @@ try{
   throw Error('Unexpected gateway action '+p.action);
  });
  const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(base);await page.getByRole('progressbar',{name:'Progresso do carregamento'}).waitFor();await page.waitForFunction(()=>{const bar=document.querySelector('[role=progressbar]');const value=Number(bar?.getAttribute('aria-valuenow'));return value>20&&value<100;});await page.screenshot({path:'artifacts/review/owl-splash.png',fullPage:true,animations:'disabled'});releaseRoles();await page.getByRole('heading',{name:'Visão geral.'}).waitFor();
+ await page.goto(base);await page.getByRole('progressbar',{name:'Progresso do carregamento'}).waitFor();await page.waitForFunction(()=>{const bar=document.querySelector('[role=progressbar]');const value=Number(bar?.getAttribute('aria-valuenow'));return value>20&&value<100;});await page.screenshot({path:'artifacts/review/owl-splash.png',fullPage:true,animations:'disabled'});releaseRoles();await page.getByRole('heading',{name:'Dashboard.',exact:true}).waitFor();
+ // Legacy workflow fixtures intentionally have no new module permissions. Actual operational persistence is covered by live-*.mjs.
+ await page.getByRole('button',{name:'Expandir menu',exact:true}).click();
+ const operationsNav=page.getByRole('navigation',{name:'Navegação principal'});
+ assert.deepEqual(await operationsNav.locator(':scope>button').evaluateAll(buttons=>buttons.map(b=>b.getAttribute('aria-label'))),['Dashboard','Rule Management','Detection Coverage','Hunting Investigation','Hunting Campaigns','False Positive Intelligence','Hunting Query Library']);
+ await page.screenshot({path:'artifacts/review/operations-dashboard.png',fullPage:true,animations:'disabled'});
+ for(const [id,label]of [['coverage','Detection Coverage'],['investigations','Hunting Investigation'],['campaigns','Hunting Campaigns'],['false-positives','False Positive Intelligence'],['query-library','Hunting Query Library']]){
+  await operationsNav.getByRole('button',{name:label,exact:true}).click();await page.getByRole('heading',{name:label+'.',exact:true}).waitFor();assert.equal(new URL(page.url()).hash,'#'+id);
+  await page.getByText(/Seu perfil não tem permissão/).waitFor();
+ }
+ await operationsNav.getByRole('button',{name:'Dashboard',exact:true}).click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/review/operations-dashboard-mobile.png',fullPage:true,animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'dashboard overflow '+JSON.stringify(await page.evaluate(()=>[...document.querySelectorAll('main *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,8).map(e=>({class:e.className,width:e.getBoundingClientRect().width})))));await page.setViewportSize({width:1440,height:1000});await page.getByRole('button',{name:'Compactar menu',exact:true}).click();
  assert.equal(await page.locator('.sidebar-compact').count(),1);
  assert.equal(await page.locator('.workspace,.version-card,.global-search,.breadcrumb,.topbar').count(),0);
  assert.equal(await page.getByLabel('Buscar regras',{exact:true}).count(),0);
@@ -125,7 +136,7 @@ try{
  assert.equal(data.change_requests[0].status,'review');assert.ok(data.change_requests[0].version_id);assert.equal(data.rule_versions.find(v=>v.id===data.change_requests[0].version_id).validated,true);
  await page.screenshot({path:'artifacts/review/rule-editor.png',fullPage:true,animations:'disabled'});
  const nav=page.getByRole('navigation',{name:'Navegação principal'});
- const goNav=async label=>{if(['GitHub','Auditoria','Equipe e acessos'].includes(label)){await page.getByRole('button',{name:'Configurações',exact:true}).click();await page.getByRole('tab',{name:label==='GitHub'?'Envio':label,exact:true}).click();}else{if(await page.locator('.sidebar-compact').count())await nav.getByRole('button',{name:'Fluxo de regras',exact:true}).click();if(await nav.getByRole('button',{name:label,exact:true}).count()===0)await goNav('Fluxo de regras');await nav.getByRole('button',{name:label,exact:true}).click();}};
+ const goNav=async label=>{if(['GitHub','Auditoria','Equipe e acessos'].includes(label)){await page.getByRole('button',{name:'Configurações',exact:true}).click();await page.getByRole('tab',{name:label==='GitHub'?'Envio':label,exact:true}).click();}else{if(await page.locator('.sidebar-compact').count())await nav.getByRole('button',{name:'Rule Management',exact:true}).click();if(await nav.getByRole('button',{name:label,exact:true}).count()===0)await goNav('Rule Management');await nav.getByRole('button',{name:label,exact:true}).click();}};
  // A transport failure after saving must not leave a form that resubmits v1.
  await goNav('Regras de detecção');
  await page.getByRole('button',{name:'Nova regra',exact:true}).click();
@@ -220,7 +231,7 @@ try{
  await page.locator('.request-row').filter({hasText:change.title}).click();const detail=page.getByRole('dialog',{name:'Revisar solicitação'});await detail.locator('.baseline-card summary').click();assert.equal(await detail.locator('.baseline-card textarea').inputValue(),originalRule);await detail.getByRole('button',{name:'Editar regra',exact:true}).click();const editor=page.getByRole('dialog',{name:'Criar nova versão'});await editor.getByLabel('Código da regra',{exact:true}).fill(originalRule.replace('malware.exe','new-executable.exe'));await editor.getByLabel('O que mudou nesta versão?',{exact:true}).fill('Atualizar o executável para o novo padrão.');await editor.getByRole('button',{name:'Salvar, validar e enviar',exact:true}).click();await page.getByRole('heading',{name:change.title+'.',exact:true}).waitFor();assert.equal(change.status,'review');assert.equal(baseline.content,originalRule);
  await page.getByRole('button',{name:'Comparar versões',exact:true}).click();await page.getByText(/malware.exe/).first().waitFor();assert.ok((await page.locator('.diff-code').innerText()).includes('new-executable.exe'));assert.ok((await page.locator('.diff-code').innerText()).includes('malware.exe'));await page.screenshot({path:'artifacts/review/baseline-history.png',fullPage:true,animations:'disabled'});
  await page.getByRole('button',{name:'Configurações',exact:true}).click();await page.getByRole('tab',{name:'Sobre a ferramenta',exact:true}).click();assert.equal((await page.locator('body').innerText()).includes('7.5.1.0620'),false);
- assert.deepEqual(await nav.locator('.nav-flow-items>button').allTextContents(),['Visão geral','Solicitações'+(data.change_requests.filter(q=>!q.deleted_at&&['requested','review','changes'].includes(q.status)).length||''),'Regras de detecção','Relatórios']);await nav.getByRole('button',{name:'Fluxo de regras',exact:true}).click();assert.equal(await nav.locator('.nav-flow-items').count(),0);await nav.getByRole('button',{name:'Fluxo de regras',exact:true}).click();
+ assert.deepEqual(await nav.locator('.nav-flow-items>button').allTextContents(),['Visão geral','Solicitações'+(data.change_requests.filter(q=>!q.deleted_at&&['requested','review','changes'].includes(q.status)).length||''),'Regras de detecção','Relatórios','Laboratório']);await nav.getByRole('button',{name:'Rule Management',exact:true}).click();assert.equal(await nav.locator('.nav-flow-items').count(),0);await nav.getByRole('button',{name:'Rule Management',exact:true}).click();
  assert.equal(calls.some(path=>path.includes('/functions/v1/')),false,'No Edge Function requests remain');assert.deepEqual(errors,[]);
  console.log(JSON.stringify({loginOwl:true,realLoadProgress:true,topNavigationRemoved:true,generalNotificationLinks:true,requestToRuleAndReview:true,archiveConfirmation:true,historyPreserved:true,githubStatusAndRetry:true,auditSearch:true,realConnectionStatuses:true,passwordInProfile:true,systemSettingsSeparated:true,adminSelfApprovalUI:true,ordinaryReviewerBlocked:true,animatedReports:true,reportPeriods:true,csvExport:true,actualPdfDownload:true,mobile:true,newFormatsAndLogWorker:true,baselineHistoryPreserved:true,groupedNavigation:true,centralizedDocumentation:true,noEdgeFunctionRequests:true,ownerOnlyDeletion:true,requestDeletionFromListAndDetails:true,submissionDeletionPreservesGitHub:true,nonOwnerAdministratorHasNoDeletionControls:true,pageErrors:errors,screenshots:'artifacts/review/'}));
  await context.close();

@@ -15,6 +15,13 @@ O HadSec centraliza o ciclo de vida das regras de segurança, oferecendo rastrea
 - **Controle de acesso:** perfis personalizados e permissões individuais.
 - **Integração com GitHub:** criação de branches e pull requests para publicação controlada.
 - **Auditoria e relatórios:** rastreamento de atividades, indicadores e exportação de relatórios.
+- **Detection Coverage:** sincronização dos catálogos oficiais MITRE ATT&CK, SigmaHQ e Atomic Red Team, vínculos auditáveis e exportação ATT&CK Navigator.
+- **Hunting Investigation:** hipóteses, evidências privadas, importação estruturada de Chainsaw/Hayabusa/Velociraptor, timeline, achados e PDF.
+- **Hunting Campaigns:** participantes, tarefas, Kanban persistente, vínculos e relatório de encerramento.
+- **False Positive Intelligence:** causas, versões da regra, recorrências e solicitações de tuning.
+- **Hunting Query Library:** consultas por tecnologia/linguagem, versões, favoritos, JSON e vínculos que preservam a versão usada.
+
+Detalhes de implementação, migrações, testes, validação manual e limites: [módulos operacionais](docs/functional-modules.md). A plataforma não executa comandos Atomic nem consultas nos SIEMs. Cobertura validada exige evidência pertinente à versão da regra e ao ambiente.
 
 ## Tecnologias
 

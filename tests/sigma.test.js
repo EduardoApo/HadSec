@@ -1,0 +1,28 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {safeYAML,sigmaEntry} from '../server/sigma-catalog.mjs';
+import {officialTar} from '../server/official-tar.mjs';
+import {gzipSync} from 'node:zlib';
+import {testDatabase,person,acting} from './support/database.mjs';
+const yaml=id=>`title: Detect Suspicious Process ${id}\nid: 50000000-0000-4000-8000-${String(id).padStart(12,'0')}\nstatus: experimental\nlevel: high\nauthor: Test author\ndescription: Process execution reference\ntags: [attack.t1059.001]\nlogsource:\n  product: windows\n  category: process_creation\ndetection:\n  selection:\n    Image|endswith: malware.exe\n  condition: selection\nfalsepositives: [Administration]\n`;
+test('Sigma parser preserves original and rejects unsafe tags, duplicate keys, aliases and excessive content',async()=>{
+ const r=await sigmaEntry('rules/test.yml',yaml(1));assert.equal(r.details.condition,'selection');assert.deepEqual(r.techniques,['T1059.001']);assert.equal(r.original,yaml(1));assert.equal(r.sha256.length,64);assert.equal(r.details.author,'Test author');
+ assert.throws(()=>safeYAML('a: 1\na: 2'),/YAML inválido/);assert.throws(()=>safeYAML('a: !!js/function evil'),/Tag YAML/);assert.throws(()=>safeYAML('constructor: evil'),/Chave YAML/);assert.throws(()=>safeYAML('a'.repeat(500001)),/500 KB/);assert.throws(()=>safeYAML('a: &a [*a]'),/limites/);
+});
+test('Official TAR reader selects regular YAML files without extraction and rejects corrupt headers',async()=>{
+ const header=Buffer.alloc(512);header.write('sigma-sha/rules/test.yml');header.write('0000644\0',100);header.write('0000000\0',108);header.write('0000000\0',116);header.write('00000000004\0',124);header.fill(32,148,156);header[156]=48;const sum=header.reduce((a,b)=>a+b,0);header.write(sum.toString(8).padStart(6,'0')+'\0 ',148);const raw=Buffer.concat([header,Buffer.from('a: 1'),Buffer.alloc(508),Buffer.alloc(1024)]);
+ const files=[];for await(const file of officialTar('https://official.example',p=>p==='rules/test.yml',{fetchImpl:async()=>new Response(gzipSync(raw))}))files.push(file);assert.deepEqual(files,[{path:'rules/test.yml',text:'a: 1'}]);raw[0]=0;await assert.rejects(async()=>{for await(const file of officialTar('https://official.example',()=>true,{fetchImpl:async()=>new Response(gzipSync(raw))}))void file;},/Checksum/);
+});
+test('PostgreSQL Sigma: atomic snapshots, persistent search, original revisions, links, referenced requests, permission and idempotence',async()=>{
+ const db=await testDatabase(),admin='50000000-0000-4000-8000-000000000001',reader='50000000-0000-4000-8000-000000000002';try{
+ await person(db,admin,'admin_sigma','Administrador');await person(db,reader,'reader_sigma','Leitor');await acting(db,reader);await assert.rejects(db.query("select begin_reference_sync('sigma')"),/Sem permissão/);
+ await acting(db,admin);const run=(await db.query("select begin_reference_sync('sigma') id")).rows[0].id;await assert.rejects(db.query("select finish_reference_sync($1,$2,false)",[run,'a'.repeat(40)]),/permission denied/);
+ await acting(db,admin,'service_role');await assert.rejects(db.query("select finish_reference_sync($1,$2,false)",[run,'a'.repeat(40)]),/incompleto/);
+ for(let i=1;i<=100;i++){const entry=await sigmaEntry('rules/test'+i+'.yml',yaml(i));await db.query("insert into reference_staging(run_id,source,id,entry) values($1,'sigma',$2,$3)",[run,entry.id,entry]);}
+ const result=(await db.query('select finish_reference_sync($1,$2,false) result',[run,'a'.repeat(40)])).rows[0].result;assert.equal(result.total,100);assert.equal((await db.query('select count(*)::int n from reference_staging')).rows[0].n,0);
+ await acting(db,admin);const found=(await db.query("select search_reference_rules('sigma','T1059.001','high','','process_creation',0,30) result")).rows[0].result;assert.equal(found.total,100);assert.equal(found.items.length,30);assert.equal(found.items[0].original,undefined);
+ const reference='50000000-0000-4000-8000-000000000001';const request=(await db.query("select create_sigma_request($1,'Sigma intake','Investigate this process') id",[reference])).rows[0].id;assert.equal((await db.query('select source from reference_request_links where request_id=$1',[request])).rows[0].source,'sigma');assert.match((await db.query('select description from change_requests where id=$1',[request])).rows[0].description,/SHA-256/);assert.equal((await db.query('select count(*)::int n from rules')).rows[0].n,0);
+ const version=(await db.query("select save_rule(null,'Internal rule','Test','Baixa','','Native','sigma',$1,'Initial version',0) id",[yaml(1)])).rows[0].id;const rule=(await db.query('select rule_id from rule_versions where id=$1',[version])).rows[0].rule_id;await db.query("select link_reference_rule('sigma',$1,$2)",[reference,rule]);assert.equal((await db.query('select count(*)::int n from reference_rule_links')).rows[0].n,1);
+ const next=(await db.query("select begin_reference_sync('sigma') id")).rows[0].id;await acting(db,admin,'service_role');assert.equal((await db.query('select finish_reference_sync($1,$2,true) result',[next,'a'.repeat(40)])).rows[0].result.unchanged,true);assert.equal((await db.query('select count(*)::int n from reference_rule_revisions')).rows[0].n,100);
+ await acting(db,reader);await assert.rejects(db.query("select link_reference_rule('sigma',$1,$2)",[reference,rule]),/Sem permissão/);await assert.rejects(db.query("update reference_rules set title='Forged'"),/permission denied/);await acting(db,'','anon');await assert.rejects(db.query("select search_reference_rules('sigma')"),/permission denied/);
+ }finally{await db.close();}
+});

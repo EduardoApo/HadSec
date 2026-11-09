@@ -54,7 +54,7 @@ export async function gateway(action,payload={}){
  const {data:{session},error}=await db.auth.getSession();
  if(error||!session?.access_token)throw new Error('Sua sessão expirou. Entre novamente.');
  let response;
- try{response=await fetch('/api/gateway',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(45000)});}
+ try{response=await fetch('/api/gateway',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(action.endsWith('.sync')||action==='hunting.import'?240000:45000)});}
  catch(e){throw new Error(e.name==='TimeoutError'?'A operação demorou a responder. Tente novamente.':'Não foi possível conectar ao serviço. Verifique sua conexão e tente novamente.');}
  const data=await response.json().catch(()=>null);
  if(!data)throw new Error('O serviço da aplicação não está disponível nesta publicação.');
